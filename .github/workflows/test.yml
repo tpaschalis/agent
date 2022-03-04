@@ -18,7 +18,7 @@ jobs:
           disk-root: "C:"
       if: ${{ matrix.platform == 'windows-latest' }}
     - name: Set up Go 1.17
-      uses: actions/setup-go@v1
+      uses: actions/setup-go@v3
       with:
         go-version: 1.17.6
       id: go
