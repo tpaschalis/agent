@@ -3,6 +3,7 @@ server:
   http_listen_port: 12345
 
 metrics:
+  wal_directory: /tmp/wal
   global:
     scrape_interval: 1m
   configs:
@@ -16,3 +17,5 @@ metrics:
                 cluster: 'localhost'
       remote_write:
         - url: http://localhost:9009/api/prom/push
+integrations:
+  ebpf: {}
