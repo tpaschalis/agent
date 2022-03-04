@@ -221,6 +221,8 @@ func (c *controller) Handler(prefix string) (http.Handler, error) {
 		}
 
 		handler, err := i.Handler(iprefix + "/")
+
+		fmt.Println("Calling for our integration and ", iprefix+"/", handler)
 		if err != nil {
 			saveFirstErr(fmt.Errorf("could not generate HTTP handler for %s integration %q: %w", id.Name, id.Identifier, err))
 			return
@@ -231,11 +233,14 @@ func (c *controller) Handler(prefix string) (http.Handler, error) {
 		// Anything that matches the integrationPrefix should be passed to the handler.
 		r.PathPrefix(iprefix).HandlerFunc(func(rw http.ResponseWriter, r *http.Request) {
 			if !ci.Running() {
+				fmt.Println("our integration is NOT running")
 				http.Error(rw, fmt.Sprintf("%s integration intance %q not running", id.Name, id.Identifier), http.StatusServiceUnavailable)
 				return
 			}
 			handler.ServeHTTP(rw, r)
 		})
+
+		fmt.Println("After this, our handler should be serving")
 	})
 	if err != nil {
 		level.Warn(c.logger).Log("msg", "error when iterating over integrations to build HTTP handlers", "err", err)

@@ -150,6 +150,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.1.2 // indirect
 	github.com/checkpoint-restore/go-criu/v5 v5.0.0 // indirect
 	github.com/cilium/ebpf v0.7.0 // indirect
+	github.com/cloudflare/ebpf_exporter v1.2.5 // indirect
 	github.com/cncf/xds/go v0.0.0-20211011173535-cb28da3451f1 // indirect
 	github.com/containerd/cgroups v1.0.2 // indirect
 	github.com/containerd/console v1.0.2 // indirect
