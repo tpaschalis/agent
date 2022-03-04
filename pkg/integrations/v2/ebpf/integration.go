@@ -288,8 +288,8 @@ func createHandler() http.HandlerFunc {
 		h := promhttp.HandlerFor(registry, promhttp.HandlerOpts{})
 		h.ServeHTTP(w, r)
 
-		ln := []byte(`an_important_metric_total{method="GET",code="200"}  3`)
-		w.Write(ln)
+		// ln := []byte(`an_important_metric_total{method="GET",code="200"}  3`)
+		// w.Write(ln)
 		return
 	}
 }
@@ -342,4 +342,8 @@ func (e *ebpfHandler) ScrapeConfigs(sd discovery.Configs) []*autoscrape.ScrapeCo
 		Instance: e.cfg.common.Autoscrape.MetricsInstance,
 		Config:   cfg,
 	}}
+}
+
+func (e *ebpfHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	createHandler()
 }
