@@ -2,7 +2,6 @@ package config
 
 import (
 	"bytes"
-	"errors"
 	"flag"
 	"fmt"
 	"io/ioutil"
@@ -261,25 +260,25 @@ func LoadRemote(url string, expandEnvVars bool, c *Config) error {
 
 // LoadDynamicConfiguration is used to load configuration from a variety of sources using
 // dynamic loader, this is a templated approach
-func LoadDynamicConfiguration(url string, expandvar bool, c *Config) error {
-	if expandvar {
-		return errors.New("expand var is not supported when using dynamic configuration, use gomplate env instead")
-	}
-	cmf, err := NewDynamicLoader()
-	if err != nil {
-		return err
-	}
-	err = cmf.LoadConfigByPath(url)
-	if err != nil {
-		return err
-	}
+// func LoadDynamicConfiguration(url string, expandvar bool, c *Config) error {
+// 	if expandvar {
+// 		return errors.New("expand var is not supported when using dynamic configuration, use gomplate env instead")
+// 	}
+// 	cmf, err := NewDynamicLoader()
+// 	if err != nil {
+// 		return err
+// 	}
+// 	err = cmf.LoadConfigByPath(url)
+// 	if err != nil {
+// 		return err
+// 	}
 
-	err = cmf.ProcessConfigs(c)
-	if err != nil {
-		return fmt.Errorf("error processing config templates %w", err)
-	}
-	return nil
-}
+// 	err = cmf.ProcessConfigs(c)
+// 	if err != nil {
+// 		return fmt.Errorf("error processing config templates %w", err)
+// 	}
+// 	return nil
+// }
 
 // LoadBytes unmarshals a config from a buffer. Defaults are not
 // applied to the file and must be done manually if LoadBytes
@@ -326,9 +325,9 @@ func Load(fs *flag.FlagSet, args []string) (*Config, error) {
 		}
 		if features.Enabled(fs, featDynamicConfig) && !features.Enabled(fs, featIntegrationsNext) {
 			return fmt.Errorf("integrations-next must be enabled for dynamic configuration to work")
-		} else if features.Enabled(fs, featDynamicConfig) {
-			return LoadDynamicConfiguration(url, expand, c)
-		}
+		} //else if features.Enabled(fs, featDynamicConfig) {
+		//	return LoadDynamicConfiguration(url, expand, c)
+		//}
 		return LoadFile(url, expand, c)
 	})
 }
