@@ -13,10 +13,8 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/grafana/agent/pkg/logs"
-	"github.com/grafana/agent/pkg/metrics"
 	"github.com/grafana/agent/pkg/metrics/instance"
 	"github.com/grafana/agent/pkg/server"
-	"github.com/grafana/agent/pkg/traces"
 	"github.com/oklog/run"
 	"google.golang.org/grpc"
 	"gopkg.in/yaml.v2"
@@ -37,11 +35,11 @@ type Entrypoint struct {
 	log *server.Logger
 	cfg config.Config
 
-	srv          *server.Server
-	promMetrics  *metrics.Agent
-	lokiLogs     *logs.Logs
-	tempoTraces  *traces.Traces
-	integrations config.Integrations
+	srv *server.Server
+	//promMetrics *metrics.Agent
+	lokiLogs *logs.Logs
+	// tempoTraces  *traces.Traces
+	// integrations config.Integrations
 
 	reloadListener net.Listener
 	reloadServer   *http.Server
@@ -78,29 +76,29 @@ func NewEntrypoint(logger *server.Logger, cfg *config.Config, reloader Reloader)
 		return nil, err
 	}
 
-	ep.promMetrics, err = metrics.New(prometheus.DefaultRegisterer, cfg.Metrics, logger)
-	if err != nil {
-		return nil, err
-	}
+	// ep.promMetrics, err = metrics.New(prometheus.DefaultRegisterer, cfg.Metrics, logger)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	ep.lokiLogs, err = logs.New(prometheus.DefaultRegisterer, cfg.Logs, logger)
 	if err != nil {
 		return nil, err
 	}
 
-	ep.tempoTraces, err = traces.New(ep.lokiLogs, ep.promMetrics.InstanceManager(), prometheus.DefaultRegisterer, cfg.Traces, cfg.Server.LogLevel.Logrus, cfg.Server.LogFormat)
-	if err != nil {
-		return nil, err
-	}
+	// ep.tempoTraces, err = traces.New(ep.lokiLogs, ep.promMetrics.InstanceManager(), prometheus.DefaultRegisterer, cfg.Traces, cfg.Server.LogLevel.Logrus, cfg.Server.LogFormat)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
-	integrationGlobals, err := ep.createIntegrationsGlobals(cfg)
-	if err != nil {
-		return nil, err
-	}
-	ep.integrations, err = config.NewIntegrations(logger, &cfg.Integrations, integrationGlobals)
-	if err != nil {
-		return nil, err
-	}
+	// integrationGlobals, err := ep.createIntegrationsGlobals(cfg)
+	// if err != nil {
+	// 	return nil, err
+	// }
+	// ep.integrations, err = config.NewIntegrations(logger, &cfg.Integrations, integrationGlobals)
+	// if err != nil {
+	// 	return nil, err
+	// }
 
 	ep.wire(ep.srv.HTTP, ep.srv.GRPC)
 
@@ -130,9 +128,9 @@ func (ep *Entrypoint) createIntegrationsGlobals(cfg *config.Config) (config.Inte
 
 	return config.IntegrationsGlobals{
 		AgentIdentifier: fmt.Sprintf("%s:%d", hostname, listenPort),
-		Metrics:         ep.promMetrics,
-		Logs:            ep.lokiLogs,
-		Tracing:         ep.tempoTraces,
+		// Metrics:         ep.promMetrics,
+		Logs: ep.lokiLogs,
+		// Tracing:         ep.tempoTraces,
 		// TODO(rfratto): set SubsystemOptions here when v1 is removed.
 		AgentBaseURL: &url.URL{
 			Scheme: scheme,
@@ -159,29 +157,29 @@ func (ep *Entrypoint) ApplyConfig(cfg config.Config) error {
 	}
 
 	// Go through each component and update it.
-	if err := ep.promMetrics.ApplyConfig(cfg.Metrics); err != nil {
-		level.Error(ep.log).Log("msg", "failed to update prometheus", "err", err)
-		failed = true
-	}
+	// if err := ep.promMetrics.ApplyConfig(cfg.Metrics); err != nil {
+	// 	level.Error(ep.log).Log("msg", "failed to update prometheus", "err", err)
+	// 	failed = true
+	// }
 
 	if err := ep.lokiLogs.ApplyConfig(cfg.Logs); err != nil {
 		level.Error(ep.log).Log("msg", "failed to update loki", "err", err)
 		failed = true
 	}
 
-	if err := ep.tempoTraces.ApplyConfig(ep.lokiLogs, ep.promMetrics.InstanceManager(), cfg.Traces, cfg.Server.LogLevel.Logrus); err != nil {
-		level.Error(ep.log).Log("msg", "failed to update traces", "err", err)
-		failed = true
-	}
+	// if err := ep.tempoTraces.ApplyConfig(ep.lokiLogs, ep.promMetrics.InstanceManager(), cfg.Traces, cfg.Server.LogLevel.Logrus); err != nil {
+	// 	level.Error(ep.log).Log("msg", "failed to update traces", "err", err)
+	// 	failed = true
+	// }
 
-	integrationGlobals, err := ep.createIntegrationsGlobals(&cfg)
-	if err != nil {
-		level.Error(ep.log).Log("msg", "failed to update integrations", "err", err)
-		failed = true
-	} else if err := ep.integrations.ApplyConfig(&cfg.Integrations, integrationGlobals); err != nil {
-		level.Error(ep.log).Log("msg", "failed to update integrations", "err", err)
-		failed = true
-	}
+	// integrationGlobals, err := ep.createIntegrationsGlobals(&cfg)
+	// if err != nil {
+	// 	level.Error(ep.log).Log("msg", "failed to update integrations", "err", err)
+	// 	failed = true
+	// } else if err := ep.integrations.ApplyConfig(&cfg.Integrations, integrationGlobals); err != nil {
+	// 	level.Error(ep.log).Log("msg", "failed to update integrations", "err", err)
+	// 	failed = true
+	// }
 
 	ep.cfg = cfg
 	if failed {
@@ -194,10 +192,10 @@ func (ep *Entrypoint) ApplyConfig(cfg config.Config) error {
 // wire is used to hook up API endpoints to components. It is called once after
 // all subsystems are created.
 func (ep *Entrypoint) wire(mux *mux.Router, grpc *grpc.Server) {
-	ep.promMetrics.WireAPI(mux)
-	ep.promMetrics.WireGRPC(grpc)
+	// ep.promMetrics.WireAPI(mux)
+	// ep.promMetrics.WireGRPC(grpc)
 
-	ep.integrations.WireAPI(mux)
+	// ep.integrations.WireAPI(mux)
 
 	mux.HandleFunc("/-/healthy", func(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusOK)
@@ -205,12 +203,12 @@ func (ep *Entrypoint) wire(mux *mux.Router, grpc *grpc.Server) {
 	})
 
 	mux.HandleFunc("/-/ready", func(w http.ResponseWriter, r *http.Request) {
-		if !ep.promMetrics.Ready() {
-			w.WriteHeader(http.StatusServiceUnavailable)
-			fmt.Fprint(w, "Metrics are not ready yet.\n")
+		// if !ep.promMetrics.Ready() {
+		// 	w.WriteHeader(http.StatusServiceUnavailable)
+		// 	fmt.Fprint(w, "Metrics are not ready yet.\n")
 
-			return
-		}
+		// 	return
+		// }
 		w.WriteHeader(http.StatusOK)
 		fmt.Fprintf(w, "Agent is Ready.\n")
 	})
@@ -272,10 +270,10 @@ func (ep *Entrypoint) Stop() {
 	ep.mut.Lock()
 	defer ep.mut.Unlock()
 
-	ep.integrations.Stop()
+	// ep.integrations.Stop()
 	ep.lokiLogs.Stop()
-	ep.promMetrics.Stop()
-	ep.tempoTraces.Stop()
+	// ep.promMetrics.Stop()
+	// ep.tempoTraces.Stop()
 	ep.srv.Close()
 
 	if ep.reloadServer != nil {
