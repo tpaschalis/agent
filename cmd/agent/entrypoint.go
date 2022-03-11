@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"net/url"
 	"os"
 	"os/signal"
 	"sync"
@@ -13,7 +12,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/grafana/agent/pkg/logs"
-	"github.com/grafana/agent/pkg/metrics/instance"
 	"github.com/grafana/agent/pkg/server"
 	"github.com/oklog/run"
 	"google.golang.org/grpc"
@@ -110,34 +108,34 @@ func NewEntrypoint(logger *server.Logger, cfg *config.Config, reloader Reloader)
 	return ep, nil
 }
 
-func (ep *Entrypoint) createIntegrationsGlobals(cfg *config.Config) (config.IntegrationsGlobals, error) {
-	hostname, err := instance.Hostname()
-	if err != nil {
-		return config.IntegrationsGlobals{}, fmt.Errorf("getting hostname: %w", err)
-	}
+// func (ep *Entrypoint) createIntegrationsGlobals(cfg *config.Config) (config.IntegrationsGlobals, error) {
+// 	hostname, err := instance.Hostname()
+// 	if err != nil {
+// 		return config.IntegrationsGlobals{}, fmt.Errorf("getting hostname: %w", err)
+// 	}
 
-	scheme := "http"
-	if cfg.Server.Flags.HTTP.UseTLS {
-		scheme = "https"
-	}
+// 	scheme := "http"
+// 	if cfg.Server.Flags.HTTP.UseTLS {
+// 		scheme = "https"
+// 	}
 
-	var listenPort int
-	if ta, ok := ep.srv.HTTPAddress().(*net.TCPAddr); ok {
-		listenPort = ta.Port
-	}
+// 	var listenPort int
+// 	if ta, ok := ep.srv.HTTPAddress().(*net.TCPAddr); ok {
+// 		listenPort = ta.Port
+// 	}
 
-	return config.IntegrationsGlobals{
-		AgentIdentifier: fmt.Sprintf("%s:%d", hostname, listenPort),
-		// Metrics:         ep.promMetrics,
-		Logs: ep.lokiLogs,
-		// Tracing:         ep.tempoTraces,
-		// TODO(rfratto): set SubsystemOptions here when v1 is removed.
-		AgentBaseURL: &url.URL{
-			Scheme: scheme,
-			Host:   fmt.Sprintf("127.0.0.1:%d", listenPort),
-		},
-	}, nil
-}
+// 	return config.IntegrationsGlobals{
+// 		AgentIdentifier: fmt.Sprintf("%s:%d", hostname, listenPort),
+// 		// Metrics:         ep.promMetrics,
+// 		Logs: ep.lokiLogs,
+// 		// Tracing:         ep.tempoTraces,
+// 		// TODO(rfratto): set SubsystemOptions here when v1 is removed.
+// 		AgentBaseURL: &url.URL{
+// 			Scheme: scheme,
+// 			Host:   fmt.Sprintf("127.0.0.1:%d", listenPort),
+// 		},
+// 	}, nil
+// }
 
 // ApplyConfig applies changes to the subsystems of the Agent.
 func (ep *Entrypoint) ApplyConfig(cfg config.Config) error {

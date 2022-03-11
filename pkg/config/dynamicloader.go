@@ -1,12 +1,10 @@
 package config
 
 import (
-	v2 "github.com/grafana/agent/pkg/integrations/v2"
 	"github.com/hairyhenderson/go-fsimpl"
 	"github.com/hairyhenderson/go-fsimpl/blobfs"
 	"github.com/hairyhenderson/go-fsimpl/filefs"
 	"github.com/hashicorp/go-multierror"
-	"gopkg.in/yaml.v2"
 )
 
 // DynamicLoader is used to load configs from a variety of sources and squash them together.
@@ -322,14 +320,14 @@ import (
 
 // unmarshalYamlToExporters attempts to convert the contents of yaml string into a set of exporters and then return
 // those configurations.
-func unmarshalYamlToExporters(contents string) ([]v2.Config, error) {
-	o := &v2.SubsystemOptions{}
-	err := yaml.Unmarshal([]byte(contents), o)
-	if err != nil {
-		return nil, err
-	}
-	return o.Configs, nil
-}
+// func unmarshalYamlToExporters(contents string) ([]v2.Config, error) {
+// 	o := &v2.SubsystemOptions{}
+// 	err := yaml.Unmarshal([]byte(contents), o)
+// 	if err != nil {
+// 		return nil, err
+// 	}
+// 	return o.Configs, nil
+// }
 
 func newFSProvider() fsimpl.FSMux {
 	mux := fsimpl.NewMux()

@@ -42,18 +42,18 @@ var (
 // DefaultConfig holds default settings for all the subsystems.
 var DefaultConfig = Config{
 	// All subsystems with a DefaultConfig should be listed here.
-	Metrics:               metrics.DefaultConfig,
-	Integrations:          DefaultVersionedIntegrations,
+	//Metrics:               metrics.DefaultConfig,
+	//Integrations:          DefaultVersionedIntegrations,
 	EnableConfigEndpoints: false,
 }
 
 // Config contains underlying configurations for the agent
 type Config struct {
-	Server       server.Config         `yaml:"server,omitempty"`
-	Metrics      metrics.Config        `yaml:"metrics,omitempty"`
-	Integrations VersionedIntegrations `yaml:"integrations,omitempty"`
-	Traces       traces.Config         `yaml:"traces,omitempty"`
-	Logs         *logs.Config          `yaml:"logs,omitempty"`
+	Server server.Config `yaml:"server,omitempty"`
+	//Metrics      metrics.Config        `yaml:"metrics,omitempty"`
+	//Integrations VersionedIntegrations `yaml:"integrations,omitempty"`
+	//Traces       traces.Config         `yaml:"traces,omitempty"`
+	Logs *logs.Config `yaml:"logs,omitempty"`
 
 	// We support a secondary server just for the /-/reload endpoint, since
 	// invoking /-/reload against the primary server can cause the server
@@ -98,13 +98,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 	}
 
 	// Migrate old fields to the new name
-	if fc.Prometheus != nil && fc.Metrics.Unmarshaled && fc.Prometheus.Unmarshaled {
-		return fmt.Errorf("at most one of prometheus and metrics should be specified")
-	} else if fc.Prometheus != nil && fc.Prometheus.Unmarshaled {
-		fc.Deprecations = append(fc.Deprecations, "`prometheus` has been deprecated in favor of `metrics`")
-		fc.Metrics = *fc.Prometheus
-		fc.Prometheus = nil
-	}
+	// if fc.Prometheus != nil && fc.Metrics.Unmarshaled && fc.Prometheus.Unmarshaled {
+	// 	return fmt.Errorf("at most one of prometheus and metrics should be specified")
+	// } else if fc.Prometheus != nil && fc.Prometheus.Unmarshaled {
+	// 	fc.Deprecations = append(fc.Deprecations, "`prometheus` has been deprecated in favor of `metrics`")
+	// 	fc.Metrics = *fc.Prometheus
+	// 	fc.Prometheus = nil
+	// }
 
 	if fc.Logs != nil && fc.Loki != nil {
 		return fmt.Errorf("at most one of loki and logs should be specified")
@@ -114,13 +114,13 @@ func (c *Config) UnmarshalYAML(unmarshal func(interface{}) error) error {
 		fc.Loki = nil
 	}
 
-	if fc.Tempo != nil && fc.Traces.Unmarshaled {
-		return fmt.Errorf("at most one of tempo and traces should be specified")
-	} else if fc.Tempo != nil && fc.Tempo.Unmarshaled {
-		fc.Deprecations = append(fc.Deprecations, "`tempo` has been deprecated in favor of `traces`")
-		fc.Traces = *fc.Tempo
-		fc.Tempo = nil
-	}
+	// if fc.Tempo != nil && fc.Traces.Unmarshaled {
+	// 	return fmt.Errorf("at most one of tempo and traces should be specified")
+	// } else if fc.Tempo != nil && fc.Tempo.Unmarshaled {
+	// 	fc.Deprecations = append(fc.Deprecations, "`tempo` has been deprecated in favor of `traces`")
+	// 	fc.Traces = *fc.Tempo
+	// 	fc.Tempo = nil
+	// }
 
 	*c = Config(fc.baseConfig)
 	return nil
@@ -169,23 +169,23 @@ func (c *Config) LogDeprecations(l log.Logger) {
 
 // Validate validates the config, flags, and sets default values.
 func (c *Config) Validate(fs *flag.FlagSet) error {
-	if err := c.Metrics.ApplyDefaults(); err != nil {
-		return err
-	}
+	// if err := c.Metrics.ApplyDefaults(); err != nil {
+	// 	return err
+	// }
 
-	c.Metrics.ServiceConfig.Lifecycler.ListenPort = c.Server.Flags.GRPC.ListenPort
+	// c.Metrics.ServiceConfig.Lifecycler.ListenPort = c.Server.Flags.GRPC.ListenPort
 
-	if err := c.Integrations.ApplyDefaults(&c.Server, &c.Metrics); err != nil {
-		return err
-	}
+	// if err := c.Integrations.ApplyDefaults(&c.Server, &c.Metrics); err != nil {
+	// 	return err
+	// }
 
-	// since the Traces config might rely on an existing Loki config
-	// this check is made here to look for cross config issues before we attempt to load
-	if err := c.Traces.Validate(c.Logs); err != nil {
-		return err
-	}
+	// // since the Traces config might rely on an existing Loki config
+	// // this check is made here to look for cross config issues before we attempt to load
+	// if err := c.Traces.Validate(c.Logs); err != nil {
+	// 	return err
+	// }
 
-	c.Metrics.ServiceConfig.APIEnableGetConfiguration = c.EnableConfigEndpoints
+	// c.Metrics.ServiceConfig.APIEnableGetConfiguration = c.EnableConfigEndpoints
 
 	// Don't validate flags if there's no FlagSet. Used for testing.
 	if fs == nil {
@@ -200,7 +200,7 @@ func (c *Config) Validate(fs *flag.FlagSet) error {
 
 // RegisterFlags registers flags in underlying configs
 func (c *Config) RegisterFlags(f *flag.FlagSet) {
-	c.Metrics.RegisterFlags(f)
+	// c.Metrics.RegisterFlags(f)
 	c.Server.RegisterFlags(f)
 
 	f.StringVar(&c.ReloadAddress, "reload-addr", "127.0.0.1", "address to expose a secondary server for /-/reload on.")
@@ -381,14 +381,14 @@ func load(fs *flag.FlagSet, args []string, loader func(string, bool, *Config) er
 
 	// Complete unmarshaling integrations using the version from the flag. This
 	// MUST be called before ApplyDefaults.
-	version := integrationsVersion1
-	if features.Enabled(fs, featIntegrationsNext) {
-		version = integrationsVersion2
-	}
+	// version := integrationsVersion1
+	// if features.Enabled(fs, featIntegrationsNext) {
+	// 	version = integrationsVersion2
+	// }
 
-	if err := cfg.Integrations.setVersion(version); err != nil {
-		return nil, fmt.Errorf("error loading config file %s: %w", file, err)
-	}
+	// if err := cfg.Integrations.setVersion(version); err != nil {
+	// 	return nil, fmt.Errorf("error loading config file %s: %w", file, err)
+	// }
 
 	// Finally, apply defaults to config that wasn't specified by file or flag
 	if err := cfg.Validate(fs); err != nil {
