@@ -78,7 +78,7 @@ require (
 	github.com/weaveworks/common v0.0.0-20211222122857-933588f98737
 	go.opencensus.io v0.23.0
 	go.opentelemetry.io/collector v0.46.0
-	go.opentelemetry.io/collector/model v0.46.0
+	go.opentelemetry.io/collector/model v0.47.0
 	go.opentelemetry.io/otel/metric v0.27.0
 	go.opentelemetry.io/otel/trace v1.4.1
 	go.uber.org/atomic v1.9.0
@@ -86,7 +86,7 @@ require (
 	go.uber.org/zap v1.21.0
 	golang.org/x/net v0.0.0-20220127200216-cd36cc0744dd
 	golang.org/x/sys v0.0.0-20220222172238-00053529121e
-	google.golang.org/grpc v1.44.0
+	google.golang.org/grpc v1.45.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.0-20210107192922-496545a6307b
