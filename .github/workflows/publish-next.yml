@@ -22,6 +22,7 @@ jobs:
     steps:
     - uses: actions/checkout@v3
     - run: git clone --single-branch --no-tags --depth 1 -b master https://tpaschalis:${{ secrets.GH_BOT_ACCESS_TOKEN }}@github.com/grafana/website-sync ./.github/actions/website-sync
+    - run: echo "WE ARE AT" $PWD
     - name: publish-to-git
       uses: ./.github/actions/website-sync
       id: publish
