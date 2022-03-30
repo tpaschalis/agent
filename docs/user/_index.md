@@ -7,7 +7,7 @@ weight = 1
 
 Grafana Agent is a telemetry collector for sending metrics, logs,
 and trace data to the opinionated Grafana observability stack. It works best
-with:
+with: WHAT
 
 * [Grafana Cloud](https://grafana.com/products/cloud/)
 * [Grafana Enterprise Stack](https://grafana.com/products/enterprise/)
