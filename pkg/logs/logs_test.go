@@ -193,3 +193,48 @@ configs:
 	_, err = os.Stat(filepath.Join(positionsDir, "other-positions"))
 	require.NoError(t, err, "instance-specific positions directory did not get creatd")
 }
+
+func TestLogsLocation(t *testing.T) {
+
+	positionsDir, err := ioutil.TempDir(os.TempDir(), "positions-*")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(positionsDir)
+	})
+
+	tmpFile, err := ioutil.TempFile(os.TempDir(), "*.log")
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = os.RemoveAll(tmpFile.Name())
+	})
+
+	cfgText := util.Untab(fmt.Sprintf(`
+positions_directory: %s/positions
+configs:
+- name: instance-a
+  clients:
+  - url: http://127.0.0.1:80/loki/api/v1/push
+  scrape_configs:
+  - job_name: system
+    pipeline_stages:
+    - timestamp:
+        source: __timestamp
+        format: "2006-01-02 15:04:05.000"
+        location: "Europe/Paris"
+    static_configs:
+      - targets: [localhost]
+        labels:
+          job: test
+          __path__: %s
+`, positionsDir, tmpFile.Name()))
+
+	var cfg Config
+	dec := yaml.NewDecoder(strings.NewReader(cfgText))
+	dec.SetStrict(true)
+	require.NoError(t, dec.Decode(&cfg))
+
+	logger := util.TestLogger(t)
+	l, err := New(prometheus.NewRegistry(), &cfg, logger)
+	require.NoError(t, err)
+	defer l.Stop()
+}
