@@ -95,3 +95,6 @@ This *does not* require the Grafana Agent Operator to rollout / deploy.
 
 The [grafana-agent-k8s](https://github.com/canonical/grafana-agent-operator) charmed operator runs with [Juju](https://juju.is) the Grafana Agent on Kubernetes.
 The Grafana Agent charmed operator is designed to work with the [Logs, Metrics and Alerts](https://juju.is/docs/lma2) observability stack.
+
+#### Terraform modules (Kubernetes Deployment)
+The [terraform-kubernetes-grafana-agent](https://github.com/scarf-sh/terraform-kubernetes-grafana-agent) repo contains Terraform modules allowing to deploy the Agent on a Kubernetes cluster. It contains separate modules to configure and enable forwarding of metrics, logs and traces.
