@@ -55,6 +55,16 @@
       "source": {
         "git": {
           "remote": "https://github.com/grafana/loki.git",
+          "subdir": "production/ksonnet/loki-canary"
+        }
+      },
+      "version": "1cfc30fb239cde7575573cf5426887dbde72b3a4",
+      "sum": "KP4NG0Zh3xfIcHoI6+f+VPiIkTq4Qo4e947GqU5+3Bc="
+    },
+    {
+      "source": {
+        "git": {
+          "remote": "https://github.com/grafana/loki.git",
           "subdir": "production/ksonnet/loki-simple-scalable"
         }
       },

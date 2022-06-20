@@ -1,6 +1,7 @@
 local monitoring = import './monitoring/main.jsonnet';
 local cortex = import 'cortex/main.libsonnet';
 local loki = import 'loki-simple-scalable/loki.libsonnet';
+local canary = import 'loki-canary/loki-canary.libsonnet';
 local avalanche = import 'grafana-agent/smoke/avalanche/main.libsonnet';
 local crow = import 'grafana-agent/smoke/crow/main.libsonnet';
 local etcd = import 'grafana-agent/smoke/etcd/main.libsonnet';
@@ -48,16 +49,20 @@ local loki_deployment = loki {
       },
       memberlist: {
         join_members: [
-          'lokiheadless.loki.svc.cluster.local', //' % [$._config.headless_service_name, namespace],
+          'lokiheadless.default.svc.cluster.local', //' % [$._config.headless_service_name, namespace],
         ],
       },
       common: {
         path_prefix: '/loki',
         replication_factor: 1,
         storage: {
-          gcp: {
-            bucket_name: "my-bucket-name",
+          filesystem : {
+	    chunks_directory : "/tmp/loki/chunks",
+            rules_directory: "/tmp/loki/rules",
           },
+          //gcs: {
+          //  bucket_name: "my-bucket-name",
+          //},
         },
       },
       limits_config: {
@@ -71,7 +76,7 @@ local loki_deployment = loki {
         configs: [{
           from: '2021-09-12',
           store: 'boltdb-shipper',
-          object_store: 's3',
+          object_store: 'filesystem',
           schema: 'v11',
           index: {
             prefix: 'loki_index_', //% namespace,
@@ -89,12 +94,56 @@ local loki_deployment = loki {
 
 };
 
+local loki_canary = canary {
+  _config+:: {
+    loki_canary_read_key: 'loki-canary-read-key',
+    loki_canary_user: 104334,
+    loki_canary_hostname: 'loki-ssd.grafana.net',
+    loki_canary_metric_test_range: '6h',
+    loki_canary_in_cluster_tls: true,
+    loki_canary_in_cluster_metric_test_range: '6h',
+  },
+
+  loki_canary_args+:: {
+    addr: $._config.loki_canary_hostname,
+    tls: $._config.loki_canary_in_cluster_tls,
+    port: 80,
+    labelname: 'pod',
+    interval: '500ms',
+    size: 1024,
+    wait: '1m',
+    'metric-test-interval': '30m',
+    'metric-test-range': $._config.loki_canary_in_cluster_metric_test_range,
+    user: $._config.loki_canary_user,
+    pass: $._config.loki_canary_read_key,
+  },
+
+  local deployment = k.apps.v1.deployment,
+  local statefulSet = k.apps.v1.statefulSet,
+  local service = k.core.v1.service,
+
+  loki_canary_daemonset: {},
+  loki_canary_deployment: deployment.new('loki-canary', 3, [$.loki_canary_container]) +
+                          k.util.antiAffinity,
+
+  //loki_canary_container+::
+  //  k.core.v1.container.withEnvMixin([
+  //    k.core.v1.envVar.fromSecretRef(
+  //      'LOKI_CANARY_READ',
+  //      'loki-canary',
+  //      'loki-canary-read'
+  //    ),
+  //  ]),
+};
+
 local smoke = {
   ns: namespace.new('smoke'),
 
   cortex: cortex.new('smoke'),
 
   loki: loki_deployment,
+
+  canary: loki_canary,
 
   // Needed to run agent cluster
   etcd: etcd.new('smoke'),

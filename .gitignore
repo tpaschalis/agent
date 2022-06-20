@@ -5,7 +5,7 @@
 /.cache
 /.vscode
 /.eventcache
-vendor
+./vendor
 data-agent
 
 /cmd/agent/agent
