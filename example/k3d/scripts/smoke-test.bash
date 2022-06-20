@@ -88,7 +88,7 @@ run() {
       us.gcr.io/kubernetes-dev/grafana/agent-smoke:main
   fi
 
-  (cd $ROOT/example/k3d && jb install)
+  ### (cd $ROOT/example/k3d && jb install)
   tk apply $ROOT/example/k3d/smoke --dangerous-auto-approve
 
   # Immediately create a job to sync configs so our two Agent deployments

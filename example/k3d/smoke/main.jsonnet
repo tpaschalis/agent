@@ -1,5 +1,6 @@
 local monitoring = import './monitoring/main.jsonnet';
 local cortex = import 'cortex/main.libsonnet';
+local loki = import 'loki-simple-scalable/loki.libsonnet';
 local avalanche = import 'grafana-agent/smoke/avalanche/main.libsonnet';
 local crow = import 'grafana-agent/smoke/crow/main.libsonnet';
 local etcd = import 'grafana-agent/smoke/etcd/main.libsonnet';
@@ -29,11 +30,71 @@ local new_smoke(name) = smoke.new(name, namespace='smoke', config={
   chaosFrequency: '30m',
 });
 
+local loki_deployment = loki {
+  _images+:: {
+    loki: 'grafana/loki:2.5.0',
+  },
+
+  _config+:: {
+    headless_service_name: 'loki',
+    http_listen_port: 3100,
+    read_replicas: 1,
+    write_replicas: 1,
+    loki: {
+      auth_enabled: false,
+      server: {
+        http_listen_port: 9095,
+        grpc_listen_port: 9096,
+      },
+      memberlist: {
+        join_members: [
+          'lokiheadless.loki.svc.cluster.local', //' % [$._config.headless_service_name, namespace],
+        ],
+      },
+      common: {
+        path_prefix: '/loki',
+        replication_factor: 1,
+        storage: {
+          gcp: {
+            bucket_name: "my-bucket-name",
+          },
+        },
+      },
+      limits_config: {
+        enforce_metric_name: false,
+        reject_old_samples_max_age: '168h',  //1 week
+        max_global_streams_per_user: 60000,
+        ingestion_rate_mb: 75,
+        ingestion_burst_size_mb: 100,
+      },
+      schema_config: {
+        configs: [{
+          from: '2021-09-12',
+          store: 'boltdb-shipper',
+          object_store: 's3',
+          schema: 'v11',
+          index: {
+            prefix: 'loki_index_', //% namespace,
+            period: '24h',
+          },
+        }],
+      },
+    },
+  },
+
+  write_pvc+::
+    pvc.mixin.spec.withStorageClassName('local-path'),
+  read_pvc+::
+    pvc.mixin.spec.withStorageClassName('local-path'),
+
+};
 
 local smoke = {
   ns: namespace.new('smoke'),
 
   cortex: cortex.new('smoke'),
+
+  loki: loki_deployment,
 
   // Needed to run agent cluster
   etcd: etcd.new('smoke'),
