@@ -5,7 +5,7 @@ local k = import 'ksonnet-util/kausal.libsonnet';
 local envVar = if std.objectHasAll(k.core.v1, 'envVar') then k.core.v1.envVar else k.core.v1.container.envType;
 
 config {
-  namespace: k.core.v1.namespace.new("loki"),
+  namespace: k.core.v1.namespace.new($._config.namespace),
 
   local container = k.core.v1.container,
 

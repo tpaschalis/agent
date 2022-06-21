@@ -14,9 +14,7 @@ local k = import 'ksonnet-util/kausal.libsonnet';
   // The writers should persist index files on a persistent
   // volume in order to be crash resilient.
   write_pvc::
-    pvc.new() +
-    pvc.mixin.metadata.withName('write-data') +
-    pvc.mixin.metadata.withNamespace('default') +
+    pvc.new('write-data') +
     pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
     pvc.mixin.spec.withAccessModes(['ReadWriteOnce']) +
     pvc.mixin.spec.withStorageClassName('fast'),

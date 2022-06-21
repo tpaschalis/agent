@@ -13,9 +13,7 @@ local k = import 'ksonnet-util/kausal.libsonnet';
 
   // Use PVC for queriers instead of node disk.
   read_pvc::
-    pvc.new() +
-    pvc.mixin.metadata.withName('read-data') +
-    pvc.mixin.metadata.withNamespace('default') +
+    pvc.new('read-data') +
     pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
     pvc.mixin.spec.withAccessModes(['ReadWriteOnce']),
 

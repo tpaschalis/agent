@@ -11,6 +11,7 @@ local k = import 'ksonnet-util/kausal.libsonnet';
 
 local namespace = k.core.v1.namespace;
 local pvc = k.core.v1.persistentVolumeClaim;
+local statefulSet = k.apps.v1.statefulSet;
 local volumeMount = k.core.v1.volumeMount;
 
 local images = {
@@ -37,7 +38,8 @@ local loki_deployment = loki {
   },
 
   _config+:: {
-    headless_service_name: 'loki',
+    namespace: 'smoke',
+    headless_service_name: 'loki-headless',
     http_listen_port: 3100,
     read_replicas: 1,
     write_replicas: 1,
@@ -49,7 +51,7 @@ local loki_deployment = loki {
       },
       memberlist: {
         join_members: [
-          'lokiheadless.default.svc.cluster.local', //' % [$._config.headless_service_name, namespace],
+          '%s.%s.svc.cluster.local' % [$._config.headless_service_name, $._config.namespace],
         ],
       },
       common: {
@@ -79,7 +81,7 @@ local loki_deployment = loki {
           object_store: 'filesystem',
           schema: 'v11',
           index: {
-            prefix: 'loki_index_', //% namespace,
+            prefix: '%s_index_' % $._config.namespace,
             period: '24h',
           },
         }],
@@ -87,15 +89,31 @@ local loki_deployment = loki {
     },
   },
 
-  write_pvc+::
-    pvc.mixin.spec.withStorageClassName('local-path'),
-  read_pvc+::
+  read_statefulset +:: 
+    statefulSet.mixin.metadata.withNamespace('smoke'),
+  write_statefulset +:: 
+    statefulSet.mixin.metadata.withNamespace('smoke'),
+
+  write_pvc::
+    pvc.new() +
+    pvc.mixin.metadata.withName('write-data') +
+    pvc.mixin.metadata.withNamespace('smoke') +
+    pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
+    pvc.mixin.spec.withAccessModes(['ReadWriteOnce']) +
     pvc.mixin.spec.withStorageClassName('local-path'),
 
+  read_pvc::
+    pvc.new() +
+    pvc.mixin.metadata.withName('read-data') +
+    pvc.mixin.metadata.withNamespace('smoke') +
+    pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
+    pvc.mixin.spec.withAccessModes(['ReadWriteOnce']) +
+    pvc.mixin.spec.withStorageClassName('local-path'),
 };
 
 local loki_canary = canary {
   _config+:: {
+    namespace: "smoke",
     loki_canary_read_key: 'loki-canary-read-key',
     loki_canary_user: 104334,
     loki_canary_hostname: 'loki-ssd.grafana.net',
@@ -118,12 +136,20 @@ local loki_canary = canary {
     pass: $._config.loki_canary_read_key,
   },
 
+  read_pvc+::
+    pvc.new() +
+    pvc.mixin.metadata.withName('read-data') +
+    pvc.mixin.metadata.withNamespace('smoke') +
+    pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
+    pvc.mixin.spec.withAccessModes(['ReadWriteOnce']),
+
   local deployment = k.apps.v1.deployment,
   local statefulSet = k.apps.v1.statefulSet,
   local service = k.core.v1.service,
 
   loki_canary_daemonset: {},
   loki_canary_deployment: deployment.new('loki-canary', 3, [$.loki_canary_container]) +
+      	                  deployment.mixin.metadata.withNamespace("smoke") +
                           k.util.antiAffinity,
 
   //loki_canary_container+::
