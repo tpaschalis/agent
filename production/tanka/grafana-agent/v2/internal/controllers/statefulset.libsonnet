@@ -19,5 +19,7 @@ function(replicas=1, volumeClaims=[]) {
       })
       else {}
     ) +
-    k.util.configVolumeMount(name, '/etc/agent'),
+    k.util.configVolumeMount(name, '/etc/agent') + 
+    k.util.hostVolumeMount('pod-logs', '/var/log/pods', '/var/log/pods'),
+
 }

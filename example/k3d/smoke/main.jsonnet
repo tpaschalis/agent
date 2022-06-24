@@ -1,6 +1,7 @@
 local monitoring = import './monitoring/main.jsonnet';
 local cortex = import 'cortex/main.libsonnet';
-local loki = import 'loki-simple-scalable/loki.libsonnet';
+//local loki = import 'loki-simple-scalable/loki.libsonnet';
+local loki = import 'loki/main.libsonnet';
 local canary = import 'loki-canary/loki-canary.libsonnet';
 local avalanche = import 'grafana-agent/smoke/avalanche/main.libsonnet';
 local crow = import 'grafana-agent/smoke/crow/main.libsonnet';
@@ -32,93 +33,16 @@ local new_smoke(name) = smoke.new(name, namespace='smoke', config={
   chaosFrequency: '30m',
 });
 
-local loki_deployment = loki {
-  _images+:: {
-    loki: 'grafana/loki:2.5.0',
-  },
-
-  _config+:: {
-    namespace: 'smoke',
-    headless_service_name: 'loki-headless',
-    http_listen_port: 3100,
-    read_replicas: 1,
-    write_replicas: 1,
-    loki: {
-      auth_enabled: false,
-      server: {
-        http_listen_port: 9095,
-        grpc_listen_port: 9096,
-      },
-      memberlist: {
-        join_members: [
-          '%s.%s.svc.cluster.local' % [$._config.headless_service_name, $._config.namespace],
-        ],
-      },
-      common: {
-        path_prefix: '/loki',
-        replication_factor: 1,
-        storage: {
-          filesystem : {
-	    chunks_directory : "/tmp/loki/chunks",
-            rules_directory: "/tmp/loki/rules",
-          },
-          //gcs: {
-          //  bucket_name: "my-bucket-name",
-          //},
-        },
-      },
-      limits_config: {
-        enforce_metric_name: false,
-        reject_old_samples_max_age: '168h',  //1 week
-        max_global_streams_per_user: 60000,
-        ingestion_rate_mb: 75,
-        ingestion_burst_size_mb: 100,
-      },
-      schema_config: {
-        configs: [{
-          from: '2021-09-12',
-          store: 'boltdb-shipper',
-          object_store: 'filesystem',
-          schema: 'v11',
-          index: {
-            prefix: '%s_index_' % $._config.namespace,
-            period: '24h',
-          },
-        }],
-      },
-    },
-  },
-
-  read_statefulset +:: 
-    statefulSet.mixin.metadata.withNamespace('smoke'),
-  write_statefulset +:: 
-    statefulSet.mixin.metadata.withNamespace('smoke'),
-
-  write_pvc::
-    pvc.new() +
-    pvc.mixin.metadata.withName('write-data') +
-    pvc.mixin.metadata.withNamespace('smoke') +
-    pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
-    pvc.mixin.spec.withAccessModes(['ReadWriteOnce']) +
-    pvc.mixin.spec.withStorageClassName('local-path'),
-
-  read_pvc::
-    pvc.new() +
-    pvc.mixin.metadata.withName('read-data') +
-    pvc.mixin.metadata.withNamespace('smoke') +
-    pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
-    pvc.mixin.spec.withAccessModes(['ReadWriteOnce']) +
-    pvc.mixin.spec.withStorageClassName('local-path'),
-};
+local new_loki() = loki.new(namespace = 'smoke');
 
 local loki_canary = canary {
   _config+:: {
     namespace: "smoke",
     loki_canary_read_key: 'loki-canary-read-key',
     loki_canary_user: 104334,
-    loki_canary_hostname: 'loki-ssd.grafana.net',
+    loki_canary_hostname: 'loki',
     loki_canary_metric_test_range: '6h',
-    loki_canary_in_cluster_tls: true,
+    loki_canary_in_cluster_tls: false,
     loki_canary_in_cluster_metric_test_range: '6h',
   },
 
@@ -136,7 +60,7 @@ local loki_canary = canary {
     pass: $._config.loki_canary_read_key,
   },
 
-  read_pvc+::
+  read_pvc +::
     pvc.new() +
     pvc.mixin.metadata.withName('read-data') +
     pvc.mixin.metadata.withNamespace('smoke') +
@@ -148,9 +72,9 @@ local loki_canary = canary {
   local service = k.core.v1.service,
 
   loki_canary_daemonset: {},
-  loki_canary_deployment: deployment.new('loki-canary', 3, [$.loki_canary_container]) +
-      	                  deployment.mixin.metadata.withNamespace("smoke") +
-                          k.util.antiAffinity,
+  loki_canary_deployment: deployment.new('loki-canary', 1, [$.loki_canary_container]) +
+      	                  deployment.mixin.metadata.withNamespace("smoke") //+
+                          //k.util.antiAffinity,
 
   //loki_canary_container+::
   //  k.core.v1.container.withEnvMixin([
@@ -167,7 +91,7 @@ local smoke = {
 
   cortex: cortex.new('smoke'),
 
-  loki: loki_deployment,
+  loki: new_loki(),
 
   canary: loki_canary,
 
@@ -188,6 +112,57 @@ local smoke = {
     new_crow('crow-single', 'cluster="grafana-agent"'),
     new_crow('crow-cluster', 'cluster="grafana-agent-cluster"'),
   ],
+
+  local logs_instances() = [{
+    name: 'read-canary',
+    clients: [{
+      url: 'http://loki/loki/api/v1/push',
+      basic_auth: {
+        username: '104334',
+        password: 'hey!',
+        // Comment from inlined password that was removed during git-crypt scrub:
+        // for some reason shipper push key is causing yaml parsing to fail. Will use this key until I investigate.
+        //password_file: '/var/run/secrets/promtail-secret/loki-dev-us-central1-push',
+      },
+      external_labels: {
+        cluster: "grafana-agent",
+      },
+
+    }],
+    scrape_configs: [{
+      job_name: 'read-canary-output',
+      kubernetes_sd_configs: [{ role: 'pod' }],
+      //tls_config: {
+      //  ca_file: '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt',
+      //},
+      //bearer_token_file: '/var/run/secrets/kubernetes.io/serviceaccount/token',
+      pipeline_stages: [
+        cri: {},
+      ],
+      relabel_configs: [{
+        source_labels: ['__meta_kubernetes_namespace'],
+        regex: 'smoke',
+        action: 'keep',
+      },
+      {
+        source_labels: ['__meta_kubernetes_pod_container_name'],
+        regex: 'loki-canary',
+        action: 'keep',
+      }, 
+      {
+        action: 'replace',
+        source_labels: ['__meta_kubernetes_pod_uid', '__meta_kubernetes_pod_container_name'],
+        target_label: '__path__',
+        separator: '/',
+        replacement: '/var/log/pods/*$1/*.log',
+      },
+      {
+        action: 'replace',
+        source_labels: ['__meta_kubernetes_pod_name'],
+        target_label: 'pod',
+      }],
+    }],
+  }],
 
   local metric_instances(crow_name) = [{
     name: 'crow',
@@ -298,7 +273,10 @@ local smoke = {
     gragent.withService() +
     gragent.withAgentConfig({
       server: { log_level: 'debug' },
-
+      logs: {
+        positions_directory: "/var/lib/agent/logs-positions",
+        configs: logs_instances(),
+      },
       prometheus: {
         global: {
           scrape_interval: '1m',

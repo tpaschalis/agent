@@ -70,6 +70,7 @@ run() {
       --api-port 50443 \
       --kubeconfig-update-default=true \
       --kubeconfig-switch-context=true \
+      --registry-config $HOME/.registries.yaml \
       --wait >/dev/null
   fi
 
