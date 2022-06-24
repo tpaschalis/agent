@@ -1,8 +1,7 @@
 local monitoring = import './monitoring/main.jsonnet';
 local cortex = import 'cortex/main.libsonnet';
-//local loki = import 'loki-simple-scalable/loki.libsonnet';
 local loki = import 'loki/main.libsonnet';
-local canary = import 'loki-canary/loki-canary.libsonnet';
+local canary = import 'canary/main.libsonnet';
 local avalanche = import 'grafana-agent/smoke/avalanche/main.libsonnet';
 local crow = import 'grafana-agent/smoke/crow/main.libsonnet';
 local etcd = import 'grafana-agent/smoke/etcd/main.libsonnet';
@@ -35,56 +34,7 @@ local new_smoke(name) = smoke.new(name, namespace='smoke', config={
 
 local new_loki() = loki.new(namespace = 'smoke');
 
-local loki_canary = canary {
-  _config+:: {
-    namespace: "smoke",
-    loki_canary_read_key: 'loki-canary-read-key',
-    loki_canary_user: 104334,
-    loki_canary_hostname: 'loki',
-    loki_canary_metric_test_range: '6h',
-    loki_canary_in_cluster_tls: false,
-    loki_canary_in_cluster_metric_test_range: '6h',
-  },
-
-  loki_canary_args+:: {
-    addr: $._config.loki_canary_hostname,
-    tls: $._config.loki_canary_in_cluster_tls,
-    port: 80,
-    labelname: 'pod',
-    interval: '500ms',
-    size: 1024,
-    wait: '1m',
-    'metric-test-interval': '30m',
-    'metric-test-range': $._config.loki_canary_in_cluster_metric_test_range,
-    user: $._config.loki_canary_user,
-    pass: $._config.loki_canary_read_key,
-  },
-
-  read_pvc +::
-    pvc.new() +
-    pvc.mixin.metadata.withName('read-data') +
-    pvc.mixin.metadata.withNamespace('smoke') +
-    pvc.mixin.spec.resources.withRequests({ storage: '10Gi' }) +
-    pvc.mixin.spec.withAccessModes(['ReadWriteOnce']),
-
-  local deployment = k.apps.v1.deployment,
-  local statefulSet = k.apps.v1.statefulSet,
-  local service = k.core.v1.service,
-
-  loki_canary_daemonset: {},
-  loki_canary_deployment: deployment.new('loki-canary', 1, [$.loki_canary_container]) +
-      	                  deployment.mixin.metadata.withNamespace("smoke") //+
-                          //k.util.antiAffinity,
-
-  //loki_canary_container+::
-  //  k.core.v1.container.withEnvMixin([
-  //    k.core.v1.envVar.fromSecretRef(
-  //      'LOKI_CANARY_READ',
-  //      'loki-canary',
-  //      'loki-canary-read'
-  //    ),
-  //  ]),
-};
+local new_canary() = canary.new(namespace = 'smoke');
 
 local smoke = {
   ns: namespace.new('smoke'),
@@ -92,8 +42,7 @@ local smoke = {
   cortex: cortex.new('smoke'),
 
   loki: new_loki(),
-
-  canary: loki_canary,
+  canary: new_canary(),
 
   // Needed to run agent cluster
   etcd: etcd.new('smoke'),
@@ -119,10 +68,7 @@ local smoke = {
       url: 'http://loki/loki/api/v1/push',
       basic_auth: {
         username: '104334',
-        password: 'hey!',
-        // Comment from inlined password that was removed during git-crypt scrub:
-        // for some reason shipper push key is causing yaml parsing to fail. Will use this key until I investigate.
-        //password_file: '/var/run/secrets/promtail-secret/loki-dev-us-central1-push',
+        password: 'noauth',
       },
       external_labels: {
         cluster: "grafana-agent",
@@ -132,12 +78,8 @@ local smoke = {
     scrape_configs: [{
       job_name: 'read-canary-output',
       kubernetes_sd_configs: [{ role: 'pod' }],
-      //tls_config: {
-      //  ca_file: '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt',
-      //},
-      //bearer_token_file: '/var/run/secrets/kubernetes.io/serviceaccount/token',
       pipeline_stages: [
-        cri: {},
+        {cri: {}},
       ],
       relabel_configs: [{
         source_labels: ['__meta_kubernetes_namespace'],
@@ -164,7 +106,7 @@ local smoke = {
     }],
   }],
 
-  local metric_instances(crow_name) = [{
+  local metric_instances(crow_name, canary_name) = [{
     name: 'crow',
     remote_write: [
       {
@@ -206,6 +148,24 @@ local smoke = {
         }, {
           source_labels: ['__meta_kubernetes_pod_container_name'],
           regex: crow_name,
+          action: 'keep',
+        }],
+      },
+      {
+        job_name: 'canary',
+        kubernetes_sd_configs: [{ role: 'pod' }],
+        tls_config: {
+          ca_file: '/var/run/secrets/kubernetes.io/serviceaccount/ca.crt',
+        },
+        bearer_token_file: '/var/run/secrets/kubernetes.io/serviceaccount/token',
+
+        relabel_configs: [{
+          source_labels: ['__meta_kubernetes_namespace'],
+          regex: 'smoke',
+          action: 'keep',
+        }, {
+          source_labels: ['__meta_kubernetes_pod_container_name'],
+          regex: canary_name,
           action: 'keep',
         }],
       },
@@ -285,7 +245,7 @@ local smoke = {
           },
         },
         wal_directory: '/var/lib/agent/data',
-        configs: metric_instances('crow-single'),
+        configs: metric_instances('crow-single', 'canary'),
       },
     }),
 
@@ -343,7 +303,7 @@ local smoke = {
     config={
       image: images.agentctl,
       api: 'http://grafana-agent-cluster.smoke.svc.cluster.local',
-      configs: metric_instances('crow-cluster'),
+      configs: metric_instances('crow-cluster', 'canary'),
     }
   ),
 };
