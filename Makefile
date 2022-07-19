@@ -203,11 +203,11 @@ grafana-agent-crow: tools/crow/grafana-agent-crow
 # In general DRONE variable should overwrite any other options, if DRONE is not set then fallback to normal behavior
 
 cmd/agent/agent: seego cmd/agent/main.go
-	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -o $@ ./$(@D)
+	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -tags=noebpf -o $@ ./$(@D)
 	$(NETGO_CHECK)
 
 cmd/agentctl/agentctl: seego cmd/agentctl/main.go
-	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -o $@ ./$(@D)
+	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -tags=noebpf -o $@ ./$(@D)
 	$(NETGO_CHECK)
 
 cmd/agent-operator/agent-operator: cmd/agent-operator/main.go
