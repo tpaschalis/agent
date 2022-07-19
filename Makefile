@@ -84,16 +84,16 @@ DONT_FIND := -name tools -prune -o -name vendor -prune -o -name .git -prune -o -
 # Build flags
 VPREFIX        := github.com/grafana/agent/pkg/build
 GO_LDFLAGS     := -X $(VPREFIX).Branch=$(GIT_BRANCH) -X $(VPREFIX).Version=$(IMAGE_TAG) -X $(VPREFIX).Revision=$(GIT_REVISION) -X $(VPREFIX).BuildUser=$(shell whoami)@$(shell hostname) -X $(VPREFIX).BuildDate=$(shell date -u +"%Y-%m-%dT%H:%M:%SZ")
-GO_FLAGS       := -ldflags "-extldflags \"-static\" -s -w $(GO_LDFLAGS)" -tags "netgo static_build" $(GOFLAGS)
-DEBUG_GO_FLAGS := -gcflags "all=-N -l" -ldflags "-extldflags \"-static\" $(GO_LDFLAGS)" -tags "netgo static_build" $(GOFLAGS)
+GO_FLAGS       := -ldflags "-extldflags \"-static\" -s -w $(GO_LDFLAGS)" -tags "netgo static_build noebpf" $(GOFLAGS)
+DEBUG_GO_FLAGS := -gcflags "all=-N -l" -ldflags "-extldflags \"-static\" $(GO_LDFLAGS)" -tags "netgo static_build noebpf" $(GOFLAGS)
 DOCKER_BUILD_FLAGS = --build-arg RELEASE_BUILD=$(RELEASE_BUILD) --build-arg IMAGE_TAG=$(IMAGE_TAG) --build-arg DRONE=$(DRONE)
 
 # We need a separate set of flags for CGO, where building with -static can
 # cause problems with some C libraries.
 # Disable the ebpf integration by default, as it requires having the bcc
 # toolchain installed.
-CGO_FLAGS := -ldflags "-s -w $(GO_LDFLAGS)" -tags "netgo" $(GOFLAGS)
-DEBUG_CGO_FLAGS := -gcflags "all=-N -l" -ldflags "-s -w $(GO_LDFLAGS)" -tags "netgo" $(GOFLAGS)
+CGO_FLAGS := -ldflags "-s -w $(GO_LDFLAGS)" -tags "netgo noebpf" $(GOFLAGS)
+DEBUG_CGO_FLAGS := -gcflags "all=-N -l" -ldflags "-s -w $(GO_LDFLAGS)" -tags "netgo noebpf" $(GOFLAGS)
 # If we're not building the release, use the debug flags instead.
 ifeq ($(RELEASE_BUILD),false)
 GO_FLAGS = $(DEBUG_GO_FLAGS)
@@ -203,11 +203,11 @@ grafana-agent-crow: tools/crow/grafana-agent-crow
 # In general DRONE variable should overwrite any other options, if DRONE is not set then fallback to normal behavior
 
 cmd/agent/agent: seego cmd/agent/main.go
-	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -tags=noebpf -o $@ ./$(@D)
+	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -o $@ ./$(@D)
 	$(NETGO_CHECK)
 
 cmd/agentctl/agentctl: seego cmd/agentctl/main.go
-	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -tags=noebpf -o $@ ./$(@D)
+	$(ALL_CGO_BUILD_FLAGS) ; $(seego) build $(CGO_FLAGS) -o $@ ./$(@D)
 	$(NETGO_CHECK)
 
 cmd/agent-operator/agent-operator: cmd/agent-operator/main.go
@@ -296,7 +296,7 @@ dist: dist-agent dist-agentctl dist-packages
 
 dist-agent: seego dist/agent-linux-amd64 dist/agent-linux-arm64 dist/agent-linux-armv6 dist/agent-linux-armv7 dist/agent-linux-ppc64le dist/agent-darwin-amd64 dist/agent-darwin-arm64 dist/agent-windows-amd64.exe dist/agent-freebsd-amd64 dist/agent-windows-installer.exe
 dist/agent-linux-amd64: seego
-	$(call SetBuildVarsConditional,linux/amd64) ;      $(seego) build $(CGO_FLAGS) -tags=noebpf -o $@ ./cmd/agent
+	$(call SetBuildVarsConditional,linux/amd64) ;      $(seego) build $(CGO_FLAGS) -o $@ ./cmd/agent
 
 dist/agent-linux-arm64: seego
 	$(call SetBuildVarsConditional,linux/arm64) ;      $(seego) build $(CGO_FLAGS) -o $@ ./cmd/agent
@@ -343,7 +343,7 @@ dist/agent-freebsd-amd64: seego
 dist-agentctl: seego dist/agentctl-linux-amd64 dist/agentctl-linux-arm64 dist/agentctl-linux-armv6 dist/agentctl-linux-armv7 dist/agentctl-darwin-amd64 dist/agentctl-darwin-arm64 dist/agentctl-windows-amd64.exe dist/agentctl-freebsd-amd64
 
 dist/agentctl-linux-amd64: seego
-	$(call SetBuildVarsConditional,linux/amd64);    $(seego) build $(CGO_FLAGS) -tags=noebpf -o $@ ./cmd/agentctl
+	$(call SetBuildVarsConditional,linux/amd64);    $(seego) build $(CGO_FLAGS) -o $@ ./cmd/agentctl
 
 dist/agentctl-linux-arm64: seego
 	$(call SetBuildVarsConditional,linux/arm64);    $(seego) build $(CGO_FLAGS) -o $@ ./cmd/agentctl
