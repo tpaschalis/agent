@@ -683,29 +683,38 @@ func (p *parser) parseFieldList(until token.Token) []*ast.ObjectField {
 //
 //    Field = ( string | identifier ) "=" Expression
 func (p *parser) parseField() *ast.ObjectField {
-	if p.tok != token.STRING && p.tok != token.IDENT {
-		p.addErrorf("expected field name (string or identifier), got %s", p.tok)
-		p.advanceAny(fieldStarter)
-		return nil
-	}
+	expr := p.parsePrimaryExpr()
+	switch expr.(type) {
+	case *ast.IdentifierExpr:
+		e := expr.(*ast.IdentifierExpr)
 
-	field := &ast.ObjectField{
-		Name: &ast.Ident{
-			Name:    p.lit,
-			NamePos: p.pos,
-		},
-	}
-	if p.tok == token.STRING && len(p.lit) > 2 {
-		// The field name a string literal; unwrap the quotes.
-		field.Name.Name = p.lit[1 : len(p.lit)-1]
-		field.Quoted = true
-	}
-	p.next() // Consume field name
+		field := &ast.ObjectField{
+			Name: &ast.Ident{Name: e.Ident.Name, NamePos: e.Ident.NamePos},
+		}
+		p.next() // Consume field name
 
-	p.expect(token.ASSIGN)
+		field.Value = p.ParseExpression()
+		return field
+	case *ast.LiteralExpr:
+		e := expr.(*ast.LiteralExpr)
+		if e.Kind != token.STRING || len(e.Value) < 2 {
+			break
+		}
 
-	field.Value = p.ParseExpression()
-	return field
+		kn := e.Value
+		kn = kn[1 : len(kn)-1] // The key is a string literal; unwrap the quotes.
+		field := &ast.ObjectField{
+			Name:   &ast.Ident{Name: kn, NamePos: e.ValuePos},
+			Quoted: true,
+		}
+		p.next() // Consume field name
+
+		field.Value = p.ParseExpression()
+		return field
+	}
+	p.addErrorf("object keys must be strings literals or identifiers")
+	p.advance(token.COMMA)
+	return nil
 }
 
 var fieldStarter = map[token.Token]struct{}{
