@@ -140,7 +140,9 @@ func (c *Component) Update(args component.Arguments) error {
 	// Stop all readers and recreate them below. This avoids the issue we saw
 	// with stranded wrapped handlers staying behind until they were GC'ed and
 	// sending duplicate message to the global handler. It also makes sure that
-	// we update everything with the new labels.
+	// we update everything with the new labels. Simply zeroing out the
+	// c.readers map did not work correctly to shut down the wrapped handlers
+	// in time.
 	// TODO (@tpaschalis) We should be able to optimize this somehow and eg.
 	// cache readers for paths we already know about, and whose labels have not
 	// changed. Once we do that we should:

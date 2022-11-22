@@ -14,9 +14,10 @@ type metrics struct {
 	encodingFailures *prometheus.CounterVec
 	filesActive      prometheus.Gauge
 
+	// TODO(@tpaschalis) We don't need these, right?
 	// Manager metrics
-	failedTargets *prometheus.CounterVec
-	targetsActive prometheus.Gauge
+	// failedTargets *prometheus.CounterVec
+	// targetsActive prometheus.Gauge
 }
 
 // newMetrics creates a new set of file metrics. If reg is non-nil, the metrics
@@ -46,16 +47,16 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 		Help:      "Number of active files.",
 	})
 
-	m.failedTargets = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "loki_source_file",
-		Name:      "targets_failed_total",
-		Help:      "Number of failed targets.",
-	}, []string{"reason"})
-	m.targetsActive = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "loki_source_file",
-		Name:      "targets_active_total",
-		Help:      "Number of active total.",
-	})
+	// m.failedTargets = prometheus.NewCounterVec(prometheus.CounterOpts{
+	// 	Namespace: "loki_source_file",
+	// 	Name:      "targets_failed_total",
+	// 	Help:      "Number of failed targets.",
+	// }, []string{"reason"})
+	// m.targetsActive = prometheus.NewGauge(prometheus.GaugeOpts{
+	// 	Namespace: "loki_source_file",
+	// 	Name:      "targets_active_total",
+	// 	Help:      "Number of active total.",
+	// })
 
 	if reg != nil {
 		reg.MustRegister(
@@ -63,8 +64,8 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 			m.totalBytes,
 			m.readLines,
 			m.filesActive,
-			m.failedTargets,
-			m.targetsActive,
+			// m.failedTargets,
+			// m.targetsActive,
 		)
 	}
 
