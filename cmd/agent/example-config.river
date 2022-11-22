@@ -35,3 +35,8 @@ prometheus.remote_write "default" {
 		url = "http://localhost:9009/api/prom/push"
 	}
 }
+
+local.ntp "pool" {
+	ntp_server     = "pool.ntp.org"
+	poll_frequency = "5s"
+}
