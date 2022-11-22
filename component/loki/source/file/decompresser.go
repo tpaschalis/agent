@@ -82,7 +82,7 @@ func newDecompressor(metrics *metrics, logger log.Logger, handler api.EntryHandl
 	decompressor := &decompressor{
 		metrics:   metrics,
 		logger:    logger,
-		handler:   api.AddLabelsMiddleware(model.LabelSet{FilenameLabel: model.LabelValue(path)}).Wrap(handler),
+		handler:   api.AddLabelsMiddleware(model.LabelSet{filenameLabel: model.LabelValue(path)}).Wrap(handler),
 		positions: positions,
 		path:      path,
 		running:   atomic.NewBool(false),

@@ -57,14 +57,13 @@ var (
 
 // Component implements the loki.source.file component.
 type Component struct {
-	opts component.Options
-
+	opts    component.Options
 	metrics *metrics
 
 	mut       sync.RWMutex
 	args      Arguments
-	receivers []chan api.Entry
 	handler   chan api.Entry
+	receivers []chan api.Entry
 	posFile   positions.Positions
 	readers   map[string]Reader
 }
@@ -86,15 +85,16 @@ func New(o component.Options, args Arguments) (*Component, error) {
 	}
 
 	c := &Component{
-		opts:      o,
-		metrics:   newMetrics(o.Registerer),
+		opts:    o,
+		metrics: newMetrics(o.Registerer),
+
 		handler:   make(chan api.Entry),
+		receivers: args.ForwardTo,
 		posFile:   positionsFile,
 		readers:   make(map[string]Reader),
-		receivers: args.ForwardTo,
 	}
 
-	// Call to Update() to set the targets and receivers once at the start.
+	// Call to Update() to start readers and set receivers once at the start.
 	if err := c.Update(args); err != nil {
 		return nil, err
 	}
@@ -103,6 +103,9 @@ func New(o component.Options, args Arguments) (*Component, error) {
 }
 
 // Run implements component.Component.
+// TODO(@tpaschalis). Should we periodically re-check? What happens if a target
+// comes alive _after_ it's been passed to us and we never receive another
+// Update()? Or should it be a responsibility of the discovery component?
 func (c *Component) Run(ctx context.Context) error {
 	defer func() {
 		level.Info(c.opts.Logger).Log("msg", "loki.source.file component shutting down, stopping readers")
@@ -132,28 +135,42 @@ func (c *Component) Update(args component.Arguments) error {
 	c.args = newArgs
 	c.receivers = newArgs.ForwardTo
 
+	oldPaths := make(map[string]struct{})
+
+	// Stop all readers and recreate them below. This avoids the issue we saw
+	// with stranded wrapped handlers staying behind until they were GC'ed and
+	// sending duplicate message to the global handler. It also makes sure that
+	// we update everything with the new labels.
+	// TODO (@tpaschalis) We should be able to optimize this somehow and eg.
+	// cache readers for paths we already know about, and whose labels have not
+	// changed. Once we do that we should:
+	// a) Call to c.pruneStoppedReaders to give cached but errored readers a
+	// chance to restart.
+	// b) Stop tailing any files that were no longer in the new targets
+	// and conditionally remove their readers only by calling toStopTailing
+	// and c.stopTailingAndRemovePosition.
+	for p, r := range c.readers {
+		oldPaths[p] = struct{}{}
+		r.Stop()
+	}
+	c.readers = make(map[string]Reader)
+
 	if len(newArgs.Targets) == 0 {
 		level.Debug(c.opts.Logger).Log("msg", "no files targets were passed, nothing will be tailed")
 		return nil
 	}
 
-	// If any of the previous paths had its reader stopped because of errors,
-	// remove it from the running list. It will be restarted on the following
-	// loop if the path is still on the list of targets.
-	c.pruneStoppedReaders()
-
-	// c.reportSize(paths)
-
 	var paths []string
 	for _, target := range newArgs.Targets {
 		path := target[pathLabel]
+		c.reportSize(path)
 		paths = append(paths, path)
+
 		var labels = make(model.LabelSet)
 		for k, v := range target {
 			if strings.HasPrefix(k, "__") {
 				continue
 			}
-
 			labels[model.LabelName(k)] = model.LabelValue(v)
 		}
 
@@ -167,37 +184,17 @@ func (c *Component) Update(args component.Arguments) error {
 		c.readers[path] = reader
 	}
 
-	// Stop tailing any files which are no longer in our targets.
-	toStopTailing := toStopTailing(paths, c.readers)
-	c.stopTailingAndRemovePosition(toStopTailing)
+	// Remove from the positions file any paths that had a Reader before, but
+	// are no longer in the updated set of Targets.
+	for path := range missing(c.readers, oldPaths) {
+		c.posFile.Remove(path)
+	}
 
 	return nil
 }
 
-func toStopTailing(newPaths []string, existingReaders map[string]Reader) []string {
-	// Make a set of all existing tails
-	existingTails := make(map[string]struct{}, len(existingReaders))
-	for file := range existingReaders {
-		existingTails[file] = struct{}{}
-	}
-	// Make a set of what we are about to start tailing
-	newTails := make(map[string]struct{}, len(newPaths))
-	for _, p := range newPaths {
-		newTails[p] = struct{}{}
-	}
-	// Find the tails in our existing which are not in the new, these need to be stopped!
-	ts := missing(newTails, existingTails)
-	ta := make([]string, len(ts))
-	i := 0
-	for t := range ts {
-		ta[i] = t
-		i++
-	}
-	return ta
-}
-
 // Returns the elements from set b which are missing from set a
-func missing(as map[string]struct{}, bs map[string]struct{}) map[string]struct{} {
+func missing(as map[string]Reader, bs map[string]struct{}) map[string]struct{} {
 	c := map[string]struct{}{}
 	for a := range bs {
 		if _, ok := as[a]; !ok {
@@ -205,34 +202,6 @@ func missing(as map[string]struct{}, bs map[string]struct{}) map[string]struct{}
 		}
 	}
 	return c
-}
-
-// stopTailingAndRemovePosition will stop all readers for the given paths and
-// remove their positions entries reader. This should be called when a file no longer
-// exists and you want to remove all traces of it.
-func (c *Component) stopTailingAndRemovePosition(ps []string) {
-	for _, p := range ps {
-		if reader, ok := c.readers[p]; ok {
-			reader.Stop()
-			c.posFile.Remove(p)
-			delete(c.readers, p)
-		}
-	}
-}
-
-// pruneStoppedReaders removes all readers from any paths which have at least
-// one reader that has stopped running. This allows them to be restarted if
-// there were errors.
-func (c *Component) pruneStoppedReaders() {
-	toRemove := make([]string, 0, len(c.readers))
-	for path, reader := range c.readers {
-		if !reader.IsRunning() {
-			toRemove = append(toRemove, path)
-		}
-	}
-	for _, tr := range toRemove {
-		delete(c.readers, tr)
-	}
 }
 
 // startTailing starts and returns a reader for the given path. For most files,
@@ -286,4 +255,23 @@ func (c *Component) startTailing(path string, handler api.EntryHandler, labels m
 	}
 
 	return reader, nil
+}
+
+func (c *Component) reportSize(path string) {
+	// Ask the reader to update the size if a reader exists, this keeps
+	// position and size metrics in sync.
+	if reader, ok := c.readers[path]; ok {
+		err := reader.MarkPositionAndSize()
+		if err != nil {
+			level.Warn(c.opts.Logger).Log("msg", "failed to get file size from existing reader, ", "file", path, "error", err)
+			return
+		}
+	} else {
+		// Must be a new file, just directly read the size of it
+		fi, err := os.Stat(path)
+		if err != nil {
+			return
+		}
+		c.metrics.totalBytes.WithLabelValues(path).Set(float64(fi.Size()))
+	}
 }
