@@ -99,6 +99,15 @@ func New(o component.Options, args Arguments) (*Component, error) {
 
 // Run implements component.Component.
 func (c *Component) Run(ctx context.Context) error {
+	defer func() {
+		level.Info(c.opts.Logger).Log("msg", "loki.source.file component shutting down, stopping readers")
+		for _, rs := range c.readers {
+			for _, r := range rs {
+				r.Stop()
+			}
+		}
+	}()
+
 	<-ctx.Done()
 	return nil
 }
@@ -116,10 +125,12 @@ func (c *Component) Update(args component.Arguments) error {
 		return nil
 	}
 
-	// If any of the previous paths had a reader stopped because of errors,
-	// remove them from the running list. They will be restarted in the
-	// following loop if the path is still on the list of targets.
-	c.pruneStoppedTailers()
+	// If any of the previous paths had at least one reader stopped because of
+	// errors, remove all readers from the running list. They will be restarted
+	// in the following loop if the path is still on the list of targets.
+	c.pruneStoppedReaders()
+
+	// 	t.reportSize(matches) ??
 
 	var paths []string
 	for _, target := range newArgs.Targets {
@@ -188,8 +199,9 @@ func missing(as map[string]struct{}, bs map[string]struct{}) map[string]struct{}
 	return c
 }
 
-// stopTailingAndRemovePosition will stop the tailer and remove the positions entry.
-// Call this when a file no longer exists and you want to remove all traces of it.
+// stopTailingAndRemovePosition will stop all readers for the given paths and
+// remove their positions entries reader. This should be called when a file no longer
+// exists and you want to remove all traces of it.
 func (c *Component) stopTailingAndRemovePosition(ps []string) {
 	for _, p := range ps {
 		if readers, ok := c.readers[p]; ok {
@@ -202,9 +214,10 @@ func (c *Component) stopTailingAndRemovePosition(ps []string) {
 	}
 }
 
-// pruneStoppedTailers removes any tailers which have stopped running from
-// the list of active tailers. This allows them to be restarted if there were errors.
-func (c *Component) pruneStoppedTailers() {
+// pruneStoppedReaders removes all readers from any paths which have at least
+// one reader that has stopped running. This allows them to be restarted if
+// there were errors.
+func (c *Component) pruneStoppedReaders() {
 	toRemove := make([]string, 0, len(c.readers))
 	for path, readers := range c.readers {
 		for _, reader := range readers {
@@ -218,6 +231,9 @@ func (c *Component) pruneStoppedTailers() {
 	}
 }
 
+// startTailing starts and returns a reader for the given path. For most files,
+// this will be a tailer implementation. If the file suffix alludes to it being
+// a compressed file, then a decompressor will be started instead.
 func (c *Component) startTailing(path string, handler api.EntryHandler, labels model.LabelSet) (Reader, error) {
 	fi, err := os.Stat(path)
 	if err != nil {

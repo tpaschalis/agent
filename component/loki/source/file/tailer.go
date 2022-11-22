@@ -72,6 +72,8 @@ func newTailer(metrics *metrics, logger log.Logger, handler api.EntryHandler, po
 		},
 		Logger: util.NewLogAdapter(logger),
 	})
+
+	fmt.Println("POS FOR OUR TAILER:", pos)
 	if err != nil {
 		return nil, err
 	}
@@ -219,7 +221,6 @@ func (t *tailer) MarkPositionAndSize() error {
 	return nil
 }
 
-// TODO (@tpaschalis) tailers are also stopped from filetarget.go in 2 instances
 func (t *tailer) Stop() {
 	// stop can be called by two separate threads in filetarget, to avoid a panic closing channels more than once
 	// we wrap the stop in a sync.Once.
@@ -246,7 +247,6 @@ func (t *tailer) Stop() {
 	})
 }
 
-// TODO(@tpaschalis) from filetarget.go
 func (t *tailer) IsRunning() bool {
 	return t.running.Load()
 }
@@ -269,7 +269,6 @@ func (t *tailer) cleanupMetrics() {
 	t.metrics.totalBytes.DeleteLabelValues(t.path)
 }
 
-// TODO(@tpaschalis) from filetarget.go
 func (t *tailer) Path() string {
 	return t.path
 }
@@ -280,4 +279,30 @@ type Reader interface {
 	IsRunning() bool
 	Path() string
 	MarkPositionAndSize() error
+}
+
+func (c *Component) reportSize(ms []string) {
+	for _, m := range ms {
+		// Ask the tailer to update the size if a tailer exists, this keeps position and size metrics in sync
+		if readers, ok := c.readers[m]; ok {
+			for _, reader := range readers {
+				err := reader.MarkPositionAndSize()
+				if err != nil {
+					level.Warn(c.opts.Logger).Log("msg", "failed to get file size from tailer, ", "file", m, "error", err)
+					return
+				}
+			}
+		} else {
+			// Must be a new file, just directly read the size of it
+			fi, err := os.Stat(m)
+			if err != nil {
+				// If the file was deleted between when the glob match and here,
+				// we just ignore recording a size for it,
+				// the tail code will also check if the file exists before creating a tailer.
+				return
+			}
+			c.metrics.totalBytes.WithLabelValues(m).Set(float64(fi.Size()))
+		}
+
+	}
 }
