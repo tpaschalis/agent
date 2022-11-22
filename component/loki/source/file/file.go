@@ -29,7 +29,8 @@ func init() {
 }
 
 const (
-	pathLabel = "__path__"
+	pathLabel     = "__path__"
+	filenameLabel = "filename"
 )
 
 // Arguments holds values which are used to configure the loki.source.file
@@ -39,7 +40,7 @@ type Arguments struct {
 	ForwardTo []chan api.Entry   `river:"forward_to,attr,optional"`
 }
 
-// DefaultArguments defines the default settings for log scraping.
+// DefaultArguments defines the default settings for loki.source.file.
 var DefaultArguments = Arguments{}
 
 // UnmarshalRiver implements river.Unmarshaler.
@@ -60,10 +61,12 @@ type Component struct {
 
 	metrics *metrics
 
-	mut     sync.RWMutex
-	args    Arguments
-	posFile positions.Positions
-	readers map[string][]Reader
+	mut       sync.RWMutex
+	args      Arguments
+	receivers []chan api.Entry
+	handler   chan api.Entry
+	posFile   positions.Positions
+	readers   map[string]Reader
 }
 
 // New creates a new loki.source.file component.
@@ -83,10 +86,12 @@ func New(o component.Options, args Arguments) (*Component, error) {
 	}
 
 	c := &Component{
-		opts:    o,
-		metrics: newMetrics(o.Registerer),
-		readers: make(map[string][]Reader),
-		posFile: positionsFile,
+		opts:      o,
+		metrics:   newMetrics(o.Registerer),
+		handler:   make(chan api.Entry),
+		posFile:   positionsFile,
+		readers:   make(map[string]Reader),
+		receivers: args.ForwardTo,
 	}
 
 	// Call to Update() to set the targets and receivers once at the start.
@@ -101,15 +106,21 @@ func New(o component.Options, args Arguments) (*Component, error) {
 func (c *Component) Run(ctx context.Context) error {
 	defer func() {
 		level.Info(c.opts.Logger).Log("msg", "loki.source.file component shutting down, stopping readers")
-		for _, rs := range c.readers {
-			for _, r := range rs {
-				r.Stop()
-			}
+		for _, r := range c.readers {
+			r.Stop()
 		}
 	}()
 
-	<-ctx.Done()
-	return nil
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case entry := <-c.handler:
+			for _, receiver := range c.receivers {
+				receiver <- entry
+			}
+		}
+	}
 }
 
 // Update implements component.Component.
@@ -119,18 +130,19 @@ func (c *Component) Update(args component.Arguments) error {
 	c.mut.Lock()
 	defer c.mut.Unlock()
 	c.args = newArgs
+	c.receivers = newArgs.ForwardTo
 
 	if len(newArgs.Targets) == 0 {
 		level.Debug(c.opts.Logger).Log("msg", "no files targets were passed, nothing will be tailed")
 		return nil
 	}
 
-	// If any of the previous paths had at least one reader stopped because of
-	// errors, remove all readers from the running list. They will be restarted
-	// in the following loop if the path is still on the list of targets.
+	// If any of the previous paths had its reader stopped because of errors,
+	// remove it from the running list. It will be restarted on the following
+	// loop if the path is still on the list of targets.
 	c.pruneStoppedReaders()
 
-	// 	t.reportSize(matches) ??
+	// c.reportSize(paths)
 
 	var paths []string
 	for _, target := range newArgs.Targets {
@@ -145,16 +157,14 @@ func (c *Component) Update(args component.Arguments) error {
 			labels[model.LabelName(k)] = model.LabelValue(v)
 		}
 
-		for _, receiver := range newArgs.ForwardTo {
-			handler := api.AddLabelsMiddleware(labels).Wrap(api.NewEntryHandler(receiver, func() {}))
+		handler := api.AddLabelsMiddleware(labels).Wrap(api.NewEntryHandler(c.handler, func() {}))
 
-			reader, err := c.startTailing(path, handler, labels)
-			if err != nil {
-				continue // TODO (@tpaschalis) return err maybe?
-			}
-
-			c.readers[path] = append(c.readers[path], reader)
+		reader, err := c.startTailing(path, handler, labels)
+		if err != nil {
+			continue // TODO (@tpaschalis) return err maybe?
 		}
+
+		c.readers[path] = reader
 	}
 
 	// Stop tailing any files which are no longer in our targets.
@@ -164,19 +174,17 @@ func (c *Component) Update(args component.Arguments) error {
 	return nil
 }
 
-func toStopTailing(newMatches []string, existingTailers map[string][]Reader) []string {
+func toStopTailing(newPaths []string, existingReaders map[string]Reader) []string {
 	// Make a set of all existing tails
-	existingTails := make(map[string]struct{}, len(existingTailers))
-	for file := range existingTailers {
+	existingTails := make(map[string]struct{}, len(existingReaders))
+	for file := range existingReaders {
 		existingTails[file] = struct{}{}
 	}
-
 	// Make a set of what we are about to start tailing
-	newTails := make(map[string]struct{}, len(newMatches))
-	for _, p := range newMatches {
+	newTails := make(map[string]struct{}, len(newPaths))
+	for _, p := range newPaths {
 		newTails[p] = struct{}{}
 	}
-
 	// Find the tails in our existing which are not in the new, these need to be stopped!
 	ts := missing(newTails, existingTails)
 	ta := make([]string, len(ts))
@@ -204,10 +212,8 @@ func missing(as map[string]struct{}, bs map[string]struct{}) map[string]struct{}
 // exists and you want to remove all traces of it.
 func (c *Component) stopTailingAndRemovePosition(ps []string) {
 	for _, p := range ps {
-		if readers, ok := c.readers[p]; ok {
-			for _, reader := range readers {
-				reader.Stop()
-			}
+		if reader, ok := c.readers[p]; ok {
+			reader.Stop()
 			c.posFile.Remove(p)
 			delete(c.readers, p)
 		}
@@ -219,11 +225,9 @@ func (c *Component) stopTailingAndRemovePosition(ps []string) {
 // there were errors.
 func (c *Component) pruneStoppedReaders() {
 	toRemove := make([]string, 0, len(c.readers))
-	for path, readers := range c.readers {
-		for _, reader := range readers {
-			if !reader.IsRunning() {
-				toRemove = append(toRemove, path)
-			}
+	for path, reader := range c.readers {
+		if !reader.IsRunning() {
+			toRemove = append(toRemove, path)
 		}
 	}
 	for _, tr := range toRemove {

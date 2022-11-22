@@ -8,10 +8,6 @@ import (
 
 	"github.com/go-kit/log"
 	"github.com/go-kit/log/level"
-	"github.com/grafana/loki/clients/pkg/promtail/api"
-	"github.com/grafana/loki/clients/pkg/promtail/positions"
-	"github.com/grafana/loki/pkg/logproto"
-	"github.com/grafana/loki/pkg/util"
 	"github.com/hpcloud/tail"
 	"github.com/pkg/errors"
 	"github.com/prometheus/common/model"
@@ -19,10 +15,12 @@ import (
 	"golang.org/x/text/encoding"
 	"golang.org/x/text/encoding/ianaindex"
 	"golang.org/x/text/transform"
-)
 
-const (
-	FilenameLabel = "filename"
+	"github.com/grafana/loki/clients/pkg/promtail/api"
+	"github.com/grafana/loki/clients/pkg/promtail/positions"
+
+	"github.com/grafana/loki/pkg/logproto"
+	"github.com/grafana/loki/pkg/util"
 )
 
 type tailer struct {
@@ -72,8 +70,6 @@ func newTailer(metrics *metrics, logger log.Logger, handler api.EntryHandler, po
 		},
 		Logger: util.NewLogAdapter(logger),
 	})
-
-	fmt.Println("POS FOR OUR TAILER:", pos)
 	if err != nil {
 		return nil, err
 	}
@@ -82,7 +78,7 @@ func newTailer(metrics *metrics, logger log.Logger, handler api.EntryHandler, po
 	tailer := &tailer{
 		metrics:   metrics,
 		logger:    logger,
-		handler:   api.AddLabelsMiddleware(model.LabelSet{FilenameLabel: model.LabelValue(path)}).Wrap(handler),
+		handler:   api.AddLabelsMiddleware(model.LabelSet{filenameLabel: model.LabelValue(path)}).Wrap(handler),
 		positions: positions,
 		path:      path,
 		tail:      tail,
@@ -108,10 +104,11 @@ func newTailer(metrics *metrics, logger log.Logger, handler api.EntryHandler, po
 	return tailer, nil
 }
 
-// updatePosition is run in a goroutine and checks the current size of the file and saves it to the positions file
-// at a regular interval. If there is ever an error it stops the tailer and exits, the tailer will be re-opened
-// by the filetarget sync method if it still exists and will start reading from the last successful entry in the
-// positions file.
+// updatePosition is run in a goroutine and checks the current size of the file
+// and saves it to the positions file at a regular interval. If there is ever
+// an error it stops the tailer and exits, the tailer will be re-opened by the
+// filetarget sync method if it still exists and will start reading from the
+// last successful entry in the positions file.
 func (t *tailer) updatePosition() {
 	positionSyncPeriod := t.positions.SyncPeriod()
 	positionWait := time.NewTicker(positionSyncPeriod)
@@ -139,10 +136,12 @@ func (t *tailer) updatePosition() {
 	}
 }
 
-// readLines runs in a goroutine and consumes the t.tail.Lines channel from the underlying tailer.
-// it will only exit when that channel is closed. This is important to avoid a deadlock in the underlying
-// tailer which can happen if there are unread lines in this channel and the Stop method on the tailer
-// is called, the underlying tailer will never exit if there are unread lines in the t.tail.Lines channel
+// readLines runs in a goroutine and consumes the t.tail.Lines channel from the
+// underlying tailer. Et will only exit when that channel is closed. This is
+// important to avoid a deadlock in the underlying tailer which can happen if
+// there are unread lines in this channel and the Stop method on the tailer is
+// called, the underlying tailer will never exit if there are unread lines in
+// the t.tail.Lines channel
 func (t *tailer) readLines() {
 	level.Info(t.logger).Log("msg", "tail routine: started", "path", t.path)
 
@@ -194,7 +193,6 @@ func (t *tailer) readLines() {
 	}
 }
 
-// TODO(@tpashalis) this is called also from filetarget.go
 func (t *tailer) MarkPositionAndSize() error {
 	// Lock this update as there are 2 timers calling this routine, the sync in filetarget and the positions sync in this file.
 	t.posAndSizeMtx.Lock()
@@ -271,38 +269,4 @@ func (t *tailer) cleanupMetrics() {
 
 func (t *tailer) Path() string {
 	return t.path
-}
-
-// Reader contains the set of expected calls the file target manager relies on.
-type Reader interface {
-	Stop()
-	IsRunning() bool
-	Path() string
-	MarkPositionAndSize() error
-}
-
-func (c *Component) reportSize(ms []string) {
-	for _, m := range ms {
-		// Ask the tailer to update the size if a tailer exists, this keeps position and size metrics in sync
-		if readers, ok := c.readers[m]; ok {
-			for _, reader := range readers {
-				err := reader.MarkPositionAndSize()
-				if err != nil {
-					level.Warn(c.opts.Logger).Log("msg", "failed to get file size from tailer, ", "file", m, "error", err)
-					return
-				}
-			}
-		} else {
-			// Must be a new file, just directly read the size of it
-			fi, err := os.Stat(m)
-			if err != nil {
-				// If the file was deleted between when the glob match and here,
-				// we just ignore recording a size for it,
-				// the tail code will also check if the file exists before creating a tailer.
-				return
-			}
-			c.metrics.totalBytes.WithLabelValues(m).Set(float64(fi.Size()))
-		}
-
-	}
 }

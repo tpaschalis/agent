@@ -26,33 +26,33 @@ func newMetrics(reg prometheus.Registerer) *metrics {
 	m.reg = reg
 
 	m.readBytes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promtail",
+		Namespace: "loki.source.file",
 		Name:      "read_bytes_total",
 		Help:      "Number of bytes read.",
 	}, []string{"path"})
 	m.totalBytes = prometheus.NewGaugeVec(prometheus.GaugeOpts{
-		Namespace: "promtail",
+		Namespace: "loki.source.file",
 		Name:      "file_bytes_total",
 		Help:      "Number of bytes total.",
 	}, []string{"path"})
 	m.readLines = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "promtail",
+		Namespace: "loki.source.file",
 		Name:      "read_lines_total",
 		Help:      "Number of lines read.",
 	}, []string{"path"})
 	m.filesActive = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "promtail",
+		Namespace: "loki.source.file",
 		Name:      "files_active_total",
 		Help:      "Number of active files.",
 	})
 
 	m.failedTargets = prometheus.NewCounterVec(prometheus.CounterOpts{
-		Namespace: "promtail",
+		Namespace: "loki.source.file",
 		Name:      "targets_failed_total",
 		Help:      "Number of failed targets.",
 	}, []string{"reason"})
 	m.targetsActive = prometheus.NewGauge(prometheus.GaugeOpts{
-		Namespace: "promtail",
+		Namespace: "loki.source.file",
 		Name:      "targets_active_total",
 		Help:      "Number of active total.",
 	})

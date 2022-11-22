@@ -220,7 +220,7 @@ func (d *decompressor) readLines() {
 			if err != nil {
 				level.Debug(d.logger).Log("msg", "failed to convert encoding", "error", err)
 				d.metrics.encodingFailures.WithLabelValues(d.path).Inc()
-				finalText = fmt.Sprintf("the requested encoding conversion for this line failed in Promtail/Grafana Agent: %s", err.Error())
+				finalText = fmt.Sprintf("the requested encoding conversion for this line failed in Grafana Agent: %s", err.Error())
 			}
 		} else {
 			finalText = text
@@ -261,7 +261,7 @@ func (d *decompressor) Stop() {
 		close(d.posquit)
 		<-d.posdone
 
-		// Save the current position before shutting down tailer
+		// Save the current position before shutting down reader
 		if err := d.MarkPositionAndSize(); err != nil {
 			level.Error(d.logger).Log("msg", "error marking file position when stopping decompressor", "path", d.path, "error", err)
 		}
@@ -286,9 +286,9 @@ func (d *decompressor) convertToUTF8(text string) (string, error) {
 	return res, nil
 }
 
-// cleanupMetrics removes all metrics exported by this tailer
+// cleanupMetrics removes all metrics exported by this reader
 func (d *decompressor) cleanupMetrics() {
-	// When we stop tailing the file, also un-export metrics related to the file
+	// When we stop tailing the file, un-export metrics related to the file.
 	d.metrics.filesActive.Add(-1.)
 	d.metrics.readLines.DeleteLabelValues(d.path)
 	d.metrics.readBytes.DeleteLabelValues(d.path)
