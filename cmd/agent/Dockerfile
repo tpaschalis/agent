@@ -1,4 +1,4 @@
-# syntax=docker/dockerfile:1.4
+cmd/agent/Dockerfile # syntax=docker/dockerfile:1.4
 
 # NOTE: This Dockerfile can only be built using BuildKit. BuildKit is used by
 # default when running `docker buildx build` or when DOCKER_BUILDKIT=1 is set
@@ -30,15 +30,10 @@ RUN --mount=type=cache,target=/root/.cache/go-build \
 
 FROM ubuntu:jammy
 
-# Install dependencies needed at runtime. On x86_64 (arm64), libbpfcc is also
-# needed for the eBPF integration.
+# Install dependencies needed at runtime.
 RUN <<EOF
   apt-get update
   apt-get install -qy libsystemd-dev tzdata ca-certificates
-
-  if [ `uname -m` = "x86_64" ]; then
-    apt-get install -qy libbpfcc
-  fi
 
   rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*
 EOF
