@@ -34,9 +34,15 @@ Main (unreleased)
   - `otelcol.receiver.kafka` receives telemetry data from Kafka. (@rfratto)
   - `phlare.scrape` collects application performance profiles. (@cyriltovena)
   - `phlare.write` sends application performance profiles to Grafana Phlare. (@cyriltovena)
-
   - `loki.source.syslog` listens for Syslog messages over TCP and UDP
     connections and forwards them to other `loki` components. (@tpaschalis)
+
+  - `otelcol.receiver.zipkin` receives Zipkin-formatted traces. (@rfratto)
+
+- Flow components which work with relabeling rules (`discovery.relabel`,
+  `prometheus.relabel` and `loki.relabel`) now export a new field named Rules.
+  The exported value is a method that returns the currently configured rules.
+  (@tpaschalis)
 
 ### Enhancements
 
