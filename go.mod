@@ -116,13 +116,14 @@ require (
 require (
 	github.com/Lusitaniae/apache_exporter v0.11.1-0.20220518131644-f9522724dab4
 	github.com/alecthomas/units v0.0.0-20211218093645-b94a6e3cc137
-	github.com/aws/aws-sdk-go v1.44.149
+	github.com/aws/aws-sdk-go v1.44.176
 	github.com/aws/aws-sdk-go-v2 v1.17.2
 	github.com/aws/aws-sdk-go-v2/config v1.17.8
 	github.com/aws/aws-sdk-go-v2/service/s3 v1.27.11
 	github.com/bmatcuk/doublestar v1.2.2
 	github.com/bufbuild/connect-go v1.4.1
 	github.com/fatih/color v1.13.0
+	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32
 	github.com/google/go-cmp v0.5.9
 	github.com/google/renameio/v2 v2.0.0
 	github.com/grafana/phlare/api v0.1.2
@@ -140,6 +141,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/pkg/translator/prometheus v0.63.0
 	github.com/phayes/freeport v0.0.0-20220201140144-74d24b5ae9f5
 	github.com/pmezard/go-difflib v1.0.1-0.20181226105442-5d4384ee4fb2
+	github.com/prometheus-operator/prometheus-operator/pkg/client v0.61.1
 	github.com/prometheus/blackbox_exporter v0.22.1-0.20220920154026-3446984d6a6e
 	github.com/prometheus/client_model v0.3.0
 	github.com/shirou/gopsutil/v3 v3.22.9
@@ -158,6 +160,7 @@ require (
 	golang.org/x/exp v0.0.0-20221031165847-c99f073a8326
 	golang.org/x/text v0.5.0
 	google.golang.org/protobuf v1.28.1
+	k8s.io/component-base v0.25.4
 )
 
 require (
@@ -280,7 +283,6 @@ require (
 	github.com/form3tech-oss/jwt-go v3.2.5+incompatible // indirect
 	github.com/fvbommel/sortorder v1.0.2 // indirect
 	github.com/gabriel-vasile/mimetype v1.4.1 // indirect
-	github.com/ghodss/yaml v1.0.1-0.20190212211648-25d852aebe32 // indirect
 	github.com/go-git/gcfg v1.5.0 // indirect
 	github.com/go-git/go-billy/v5 v5.3.1 // indirect
 	github.com/go-git/go-git/v5 v5.4.2 // indirect
@@ -445,7 +447,6 @@ require (
 	github.com/pkg/browser v0.0.0-20210911075715-681adbf594b8 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
 	github.com/power-devops/perfstat v0.0.0-20220216144756-c35f1ee13d7c // indirect
-	github.com/prometheus-operator/prometheus-operator/pkg/client v0.61.1 // indirect
 	github.com/prometheus/alertmanager v0.24.0 // indirect
 	github.com/prometheus/common/sigv4 v0.1.0 // indirect
 	github.com/prometheus/exporter-toolkit v0.8.2 // indirect
@@ -538,7 +539,6 @@ require (
 	gopkg.in/tomb.v1 v1.0.0-20141024135613-dd632973f1e7 // indirect
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 	inet.af/netaddr v0.0.0-20211027220019-c74959edd3b6 // indirect
-	k8s.io/component-base v0.25.4 // indirect
 	k8s.io/kube-openapi v0.0.0-20221123214604-86e75ddd809a // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
 	sigs.k8s.io/structured-merge-diff/v4 v4.2.3 // indirect
