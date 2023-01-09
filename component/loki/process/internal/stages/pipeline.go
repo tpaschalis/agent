@@ -20,8 +20,13 @@ import (
 // We define these as pointers types so we can use reflection to check that
 // exactly one is set.
 type StageConfig struct {
-	JSONConfig   *JSONConfig   `river:"json,block,optional"`
-	LabelsConfig *LabelsConfig `river:"labels,block,optional"`
+	JSONConfig      *JSONConfig      `river:"json,block,optional"`
+	LabelsConfig    *LabelsConfig    `river:"labels,block,optional"`
+	DockerConfig    *DockerConfig    `river:"docker,block,optional"`
+	CRIConfig       *CRIConfig       `river:"cri,block,optional"`
+	RegexConfig     *RegexConfig     `river:"regex,block,optional"`
+	TimestampConfig *TimestampConfig `river:"timestamp,block,optional"`
+	OutputConfig    *OutputConfig    `river:"output,block,optional"`
 }
 
 // UnmarshalRiver implements river.Unmarshaler.
