@@ -8,7 +8,9 @@ import (
 	"github.com/go-kit/log/level"
 	"github.com/grafana/agent/component"
 	"github.com/grafana/agent/component/common/loki"
+	flow_relabel "github.com/grafana/agent/component/common/relabel"
 	st "github.com/grafana/agent/component/loki/source/syslog/internal/syslogtarget"
+	"github.com/prometheus/prometheus/model/relabel"
 )
 
 func init() {
@@ -27,6 +29,7 @@ func init() {
 type Arguments struct {
 	SyslogListeners []ListenerConfig    `river:"listener,block"`
 	ForwardTo       []loki.LogsReceiver `river:"forward_to,attr"`
+	RelabelConfigs  flow_relabel.Rules  `river:"relabel_configs,attr,optional"`
 }
 
 // Component implements the loki.source.syslog component.
@@ -105,8 +108,12 @@ func (c *Component) Update(args component.Arguments) error {
 		c.listeners = make([]*st.SyslogTarget, 0)
 		entryHandler := loki.NewEntryHandler(c.handler, func() {})
 
+		var rcs []*relabel.Config
+		if newArgs.RelabelConfigs != nil {
+			rcs = newArgs.RelabelConfigs()
+		}
 		for _, cfg := range newArgs.SyslogListeners {
-			t, err := st.NewSyslogTarget(c.metrics, c.opts.Logger, entryHandler, nil, cfg.Convert())
+			t, err := st.NewSyslogTarget(c.metrics, c.opts.Logger, entryHandler, rcs, cfg.Convert())
 			if err != nil {
 				level.Error(c.opts.Logger).Log("msg", "failed to create syslog listener with provided config", "err", err)
 				continue
