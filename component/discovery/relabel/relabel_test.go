@@ -1,7 +1,6 @@
 package relabel_test
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -123,54 +122,4 @@ rule {
 	require.Equal(t, gotUpdated[0].Action, flow_relabel.Drop)
 	require.Equal(t, gotUpdated[0].SourceLabels, gotOriginal[0].SourceLabels)
 	require.Equal(t, gotUpdated[0].Regex, gotOriginal[0].Regex)
-}
-
-var ferr error
-
-func BenchmarkUpdate(b *testing.B) {
-	// b.ReportAllocs()
-
-	tc, err := componenttest.NewControllerFromID(nil, "discovery.relabel")
-	require.NoError(b, err)
-
-	var argsOne relabel.Arguments
-	require.NoError(b, river.Unmarshal([]byte(fmt.Sprintf(k8sPodsRules, k8sPodsTargetsOne)), &argsOne))
-	var argsTwo relabel.Arguments
-	require.NoError(b, river.Unmarshal([]byte(fmt.Sprintf(k8sPodsRules, k8sPodsTargetsTwo)), &argsTwo))
-	argsOne.MaxCacheSize = 11
-	argsTwo.MaxCacheSize = 11
-
-	// fmt.Println("~~~~~")
-	// fmt.Println("one", len(argsOne.RelabelConfigs), len(argsOne.Targets))
-	// fmt.Println("~~~~~")
-	// fmt.Println("two", len(argsTwo.RelabelConfigs), len(argsTwo.Targets))
-	// fmt.Println("~~~~~")
-
-	go func() {
-		err = tc.Run(componenttest.TestContext(b), argsOne)
-		require.NoError(b, err)
-	}()
-
-	require.NoError(b, tc.WaitExports(time.Second))
-
-	// NOTE(@tpaschalis) No targets are getting dropped.
-	b.Run("best case", func(b *testing.B) {
-		var uerr error
-		for i := 0; i < b.N; i++ {
-			uerr = tc.Update(argsOne)
-		}
-		ferr = uerr
-	})
-
-	b.Run("worst case", func(b *testing.B) {
-		var uerr error
-		for i := 0; i < b.N; i++ {
-			if i%2 == 0 {
-				uerr = tc.Update(argsOne)
-			} else {
-				uerr = tc.Update(argsTwo)
-			}
-		}
-		ferr = uerr
-	})
 }
