@@ -168,12 +168,10 @@ func relabelingChanged(prev, next []*relabel.Config) bool {
 }
 
 type cacheItem struct {
-	original  discovery.Target
+	original  labels.Labels
 	relabeled discovery.Target
 }
 
-// TODO(@tpaschalis) It's unfortunate how we have to cast back and forth
-// between model.LabelSet (map) and labels.Labels (slice).
 func (c *Component) relabel(tgt discovery.Target) discovery.Target {
 	lset := labels.FromMap(tgt)
 	hash := lset.Hash()
@@ -185,7 +183,7 @@ func (c *Component) relabel(tgt discovery.Target) discovery.Target {
 	// specific entry before and can return early, or if it's a collision.
 	if found {
 		for _, ci := range val.([]cacheItem) {
-			if labels.Equal(tgt.Labels(), ci.original.Labels()) {
+			if labels.Equal(lset, ci.original) {
 				// c.metrics.cacheHits.Inc()
 				return ci.relabeled
 			}
@@ -194,14 +192,14 @@ func (c *Component) relabel(tgt discovery.Target) discovery.Target {
 
 	// Seems like it's either a new entry or a hash collision.
 	// c.metrics.cacheMisses.Inc()
-	relabeled := c.process(tgt)
+	relabeled := c.process(lset)
 
 	// In case it's a new hash, initialize it as a new cacheItem.
 	// If it was a collision, append the result to the cached slice.
 	if !found {
-		val = []cacheItem{{tgt, relabeled}}
+		val = []cacheItem{{lset, relabeled}}
 	} else {
-		val = append(val.([]cacheItem), cacheItem{tgt, relabeled})
+		val = append(val.([]cacheItem), cacheItem{lset, relabeled})
 	}
 
 	c.cache.Add(hash, val)
@@ -210,8 +208,7 @@ func (c *Component) relabel(tgt discovery.Target) discovery.Target {
 	return relabeled
 }
 
-func (c *Component) process(tgt discovery.Target) discovery.Target {
-	lset := componentMapToPromLabels(tgt)
-	lset = relabel.Process(lset, c.rcs...)
-	return promLabelsToComponent(lset)
+func (c *Component) process(lset labels.Labels) discovery.Target {
+	res := relabel.Process(lset, c.rcs...)
+	return res.Map()
 }
