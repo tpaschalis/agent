@@ -26,3 +26,23 @@ discovery.kubernetes "endpointslices" {
 discovery.kubernetes "ingresses" {
 	role = "ingress"
 }
+
+prometheus.scrape "default" {
+	clustering {
+		enabled = true
+	}
+
+	targets    = discovery.kubernetes.pods.targets
+	forward_to = [prometheus.remote_write.grafanacloud.receiver]
+}
+
+prometheus.remote_write "grafanacloud" {
+	endpoint {
+		url = "url"
+
+		basic_auth {
+			username = "user"
+			password = "pass"
+		}
+	}
+}
