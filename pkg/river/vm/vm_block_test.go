@@ -627,6 +627,51 @@ func TestVM_Block_Unmarshaler(t *testing.T) {
 	require.True(t, actual.Settings.Called, "UnmarshalRiver did not get invoked")
 }
 
+func BenchmarkWithType(b *testing.B) {
+	type OuterBlock struct {
+		FieldA   string   `river:"field_a,attr"`
+		Settings SettingA `river:"some.settings,block"`
+	}
+
+	input := `
+		field_a = "foobar"
+		some.settings {
+			field_a = "fizzbuzz"
+			field_b = "helloworld"
+		}
+	`
+
+	file, err := parser.ParseFile(b.Name(), []byte(input))
+	require.NoError(b, err)
+	eval := vm.New(file)
+	var actual OuterBlock
+	for i := 0; i < b.N; i++ {
+		require.NoError(b, eval.Evaluate(nil, &actual))
+	}
+}
+func BenchmarkWithoutType(b *testing.B) {
+	type OuterBlock struct {
+		FieldA   string   `river:"field_a,attr"`
+		Settings SettingB `river:"some.settings,block"`
+	}
+
+	input := `
+		field_a = "foobar"
+		some.settings {
+			field_a = "fizzbuzz"
+			field_b = "helloworld"
+		}
+	`
+
+	file, err := parser.ParseFile(b.Name(), []byte(input))
+	require.NoError(b, err)
+	eval := vm.New(file)
+	var actual OuterBlock
+	for i := 0; i < b.N; i++ {
+		require.NoError(b, eval.Evaluate(nil, &actual))
+	}
+}
+
 func TestVM_Block_UnmarshalToMap(t *testing.T) {
 	type OuterBlock struct {
 		Settings map[string]interface{} `river:"some.settings,block"`
@@ -734,6 +779,31 @@ func (s *Setting) UnmarshalRiver(f func(interface{}) error) error {
 	s.Called = true
 	type setting Setting
 	return f((*setting)(s))
+}
+
+type SettingA struct {
+	FieldA string `river:"field_a,attr"`
+	FieldB string `river:"field_b,attr"`
+
+	Called bool
+}
+
+func (s *SettingA) UnmarshalRiver(f func(interface{}) error) error {
+	s.Called = true
+	type setting SettingA
+	return f((*setting)(s))
+}
+
+type SettingB struct {
+	FieldA string `river:"field_a,attr"`
+	FieldB string `river:"field_b,attr"`
+
+	Called bool
+}
+
+func (s *SettingB) UnmarshalRiver(f func(interface{}) error) error {
+	s.Called = true
+	return f(&s)
 }
 
 func parseBlock(t *testing.T, input string) *ast.BlockStmt {
