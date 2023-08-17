@@ -170,6 +170,7 @@ func NewStorage(logger log.Logger, registerer prometheus.Registerer, path string
 			w:                      storage,
 			pendingSeries:          make([]record.RefSeries, 0, 100),
 			pendingSamples:         make([]record.RefSample, 0, 100),
+			pendingMetadata:        make([]record.RefMetadata, 0, 100),
 			pendingHistograms:      make([]record.RefHistogramSample, 0, 100),
 			pendingFloatHistograms: make([]record.RefFloatHistogramSample, 0, 100),
 			pendingExamplars:       make([]record.RefExemplar, 0, 10),
@@ -290,6 +291,11 @@ func (w *Storage) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chun
 				return []record.RefFloatHistogramSample{}
 			},
 		}
+		metadataPool = sync.Pool{
+			New: func() interface{} {
+				return []record.RefMetadata{}
+			},
+		}
 	)
 
 	go func() {
@@ -344,6 +350,19 @@ func (w *Storage) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chun
 					return
 				}
 				decoded <- floatHistograms
+			case record.Metadata:
+				meta := metadataPool.Get().([]record.RefMetadata)[:0]
+				meta, err := dec.Metadata(rec, meta)
+				if err != nil {
+					errCh <- &wlog.CorruptionErr{
+						Err:     fmt.Errorf("decode metadata: %w", err),
+						Segment: r.Segment(),
+						Offset:  r.Offset(),
+					}
+					return
+				}
+				decoded <- meta
+
 			case record.Tombstones, record.Exemplars:
 				// We don't care about decoding tombstones or exemplars
 				// TODO: If decide to decode exemplars, we should make sure to prepopulate
@@ -403,6 +422,21 @@ func (w *Storage) loadWAL(r *wlog.Reader, multiRef map[chunks.HeadSeriesRef]chun
 
 			//nolint:staticcheck
 			samplesPool.Put(v)
+		case []record.RefMetadata:
+			for _, m := range v {
+				s := w.series.GetByID(m.Ref)
+				if s == nil {
+					// unknownMetadataRefs.Inc() TODO (@tpaschalis)
+					continue
+				}
+				s.meta = &metadata.Metadata{
+					Type: record.ToTextparseMetricType(m.Type),
+					Unit: m.Unit,
+					Help: m.Help,
+				}
+			}
+			metadataPool.Put(v)
+
 		case []record.RefHistogramSample:
 			for _, entry := range v {
 				// Update the lastTs for the series based
@@ -650,6 +684,7 @@ type appender struct {
 	w                      *Storage
 	pendingSeries          []record.RefSeries
 	pendingSamples         []record.RefSample
+	pendingMetadata        []record.RefMetadata
 	pendingExamplars       []record.RefExemplar
 	pendingHistograms      []record.RefHistogramSample
 	pendingFloatHistograms []record.RefFloatHistogramSample
@@ -661,6 +696,10 @@ type appender struct {
 	// Pointers to the series referenced by each element of pendingHistograms.
 	// Series lock is not held on elements.
 	histogramSeries []*memSeries
+
+	// Pointers to the series referenced by each element of pendingMetadata.
+	// Series lock is not held on elements.
+	metadataSeries []*memSeries
 
 	// Pointers to the series referenced by each element of pendingFloatHistograms.
 	// Series lock is not held on elements.
@@ -854,9 +893,34 @@ func (a *appender) AppendHistogram(ref storage.SeriesRef, l labels.Labels, t int
 	return storage.SeriesRef(series.ref), nil
 }
 
-func (a *appender) UpdateMetadata(ref storage.SeriesRef, _ labels.Labels, m metadata.Metadata) (storage.SeriesRef, error) {
-	// TODO(rfratto): implement pushing metadata to WAL
-	return 0, nil
+func (a *appender) UpdateMetadata(ref storage.SeriesRef, lset labels.Labels, meta metadata.Metadata) (storage.SeriesRef, error) {
+	series := a.w.series.GetByID(chunks.HeadSeriesRef(ref))
+	if series == nil {
+
+		series = a.w.series.GetByHash(lset.Hash(), lset)
+		if series != nil {
+			ref = storage.SeriesRef(series.ref)
+		}
+	}
+	if series == nil {
+		return 0, fmt.Errorf("unknown series when trying to add metadata with HeadSeriesRef: %d and labels: %s", ref, lset)
+	}
+
+	series.Lock()
+	hasNewMetadata := series.meta == nil || *series.meta != meta
+	series.Unlock()
+
+	if hasNewMetadata {
+		a.pendingMetadata = append(a.pendingMetadata, record.RefMetadata{
+			Ref:  series.ref,
+			Type: record.GetMetricType(meta.Type),
+			Unit: meta.Unit,
+			Help: meta.Help,
+		})
+		a.metadataSeries = append(a.metadataSeries, series)
+	}
+
+	return storage.SeriesRef(series.ref), nil
 }
 
 // Commit submits the collected samples and purges the batch.
@@ -894,6 +958,14 @@ func (a *appender) log() error {
 
 	if len(a.pendingSamples) > 0 {
 		buf = encoder.Samples(a.pendingSamples, buf)
+		if err := a.w.wal.Log(buf); err != nil {
+			return err
+		}
+		buf = buf[:0]
+	}
+
+	if len(a.pendingMetadata) > 0 {
+		buf = encoder.Metadata(a.pendingMetadata, buf)
 		if err := a.w.wal.Log(buf); err != nil {
 			return err
 		}
@@ -954,6 +1026,7 @@ func (a *appender) clearData() {
 	a.pendingHistograms = a.pendingHistograms[:0]
 	a.pendingFloatHistograms = a.pendingFloatHistograms[:0]
 	a.pendingExamplars = a.pendingExamplars[:0]
+	a.pendingMetadata = a.pendingMetadata[:0]
 	a.sampleSeries = a.sampleSeries[:0]
 	a.histogramSeries = a.histogramSeries[:0]
 	a.floatHistogramSeries = a.floatHistogramSeries[:0]
