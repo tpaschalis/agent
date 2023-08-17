@@ -210,6 +210,7 @@ func convertConfigs(cfg Arguments) (*config.Config, error) {
 			Headers:              rw.Headers,
 			Name:                 rw.Name,
 			SendExemplars:        rw.SendExemplars,
+			SendWALMetadata:      true,
 			SendNativeHistograms: rw.SendNativeHistograms,
 
 			WriteRelabelConfigs: flow_relabel.ComponentToPromRelabelConfigs(rw.WriteRelabelConfigs),
