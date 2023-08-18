@@ -49,9 +49,10 @@ var (
 // Arguments represents the input state of the prometheus.remote_write
 // component.
 type Arguments struct {
-	ExternalLabels map[string]string  `river:"external_labels,attr,optional"`
-	Endpoints      []*EndpointOptions `river:"endpoint,block,optional"`
-	WALOptions     WALOptions         `river:"wal,block,optional"`
+	ExternalLabels  map[string]string  `river:"external_labels,attr,optional"`
+	Endpoints       []*EndpointOptions `river:"endpoint,block,optional"`
+	WALOptions      WALOptions         `river:"wal,block,optional"`
+	UseReducedProto bool               `river:"use_reduced_proto,attr,optional"`
 }
 
 // SetToDefault implements river.Defaulter.
