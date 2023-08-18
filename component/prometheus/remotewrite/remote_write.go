@@ -79,7 +79,7 @@ func New(o component.Options, c Arguments) (*Component, error) {
 	}
 
 	remoteLogger := log.With(o.Logger, "subcomponent", "rw")
-	remoteStore := remote.NewStorage(remoteLogger, o.Registerer, startTime, o.DataPath, remoteFlushDeadline, nil)
+	remoteStore := remote.NewStorage(remoteLogger, o.Registerer, startTime, o.DataPath, remoteFlushDeadline, nil, true)
 
 	res := &Component{
 		log:         o.Logger,

@@ -662,7 +662,7 @@ replace (
 //
 // * We remove our dependency on Cortex, which forces Prometheus to an older
 //   version since Go thinks v1 is newer than v0.
-replace github.com/prometheus/prometheus => github.com/tpaschalis/prometheus v0.45.0-with-wal-metadata
+replace github.com/prometheus/prometheus => github.com/tpaschalis/prometheus v0.45.0-with-wal-metadata-reduced-proto
 
 replace gopkg.in/yaml.v2 => github.com/rfratto/go-yaml v0.0.0-20211119180816-77389c3526dc
 
