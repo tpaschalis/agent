@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -13,6 +14,7 @@ import (
 	"github.com/phayes/freeport"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/common/model"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/grafana/agent/component"
@@ -94,9 +96,6 @@ func TestComponent(t *testing.T) {
 	go c.Run(componentCtx)
 	defer cancelComponent()
 
-	// small wait for server start
-	time.Sleep(200 * time.Millisecond)
-
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://localhost:%d/awsfirehose/api/v1/push", port), strings.NewReader(singleRecordRequest))
 	require.NoError(t, err)
 
@@ -105,9 +104,11 @@ func TestComponent(t *testing.T) {
 		Timeout: time.Second * 5,
 	}
 
-	res, err := client.Do(req)
-	require.NoError(t, err)
-	require.Equal(t, http.StatusOK, res.StatusCode)
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		res, err := client.Do(req)
+		require.NoError(c, err)
+		require.Equal(c, http.StatusOK, res.StatusCode)
+	}, time.Second, time.Millisecond)
 
 	require.Eventually(t, func() bool {
 		r1.mux.RLock()
@@ -117,7 +118,7 @@ func TestComponent(t *testing.T) {
 			r2.mux.RUnlock()
 		}()
 		return len(r1.received) == 1 && len(r2.received) == 1
-	}, time.Second*10, time.Second, "timed out waiting for receivers to get all messages")
+	}, time.Second, time.Millisecond, "timed out waiting for receivers to get all messages")
 
 	cancelReceivers()
 
@@ -187,9 +188,6 @@ func TestComponent_UpdateWithNewArguments(t *testing.T) {
 	go c.Run(componentCtx)
 	defer cancelComponent()
 
-	// small wait for server start
-	time.Sleep(200 * time.Millisecond)
-
 	req, err := http.NewRequest(http.MethodPost, fmt.Sprintf("http://localhost:%d/awsfirehose/api/v1/push", port), strings.NewReader(singleRecordRequest))
 	require.NoError(t, err)
 	req.Header.Set("X-Amz-Firehose-Source-Arn", "testarn")
@@ -201,15 +199,18 @@ func TestComponent_UpdateWithNewArguments(t *testing.T) {
 
 	// assert over message received with relabels
 
-	res, err := client.Do(req)
-	require.NoError(t, err)
+	var res *http.Response
+	require.Eventually(t, func() bool {
+		res, err = client.Do(req)
+		return err == nil
+	}, time.Second, time.Millisecond)
 	require.Equal(t, http.StatusOK, res.StatusCode)
 
 	require.Eventually(t, func() bool {
 		r1.mux.RLock()
 		defer r1.mux.RUnlock()
 		return len(r1.received) == 1
-	}, time.Second*10, time.Second, "timed out waiting for receivers to get all messages")
+	}, time.Second, time.Millisecond, "timed out waiting for receivers to get all messages")
 
 	r1.mux.RLock()
 	require.Len(t, r1.received, 1)
@@ -232,7 +233,10 @@ func TestComponent_UpdateWithNewArguments(t *testing.T) {
 		GRPC: &fnet.GRPCConfig{ListenPort: 0},
 	}
 	require.NoError(t, c.Update(args2))
-	time.Sleep(200 * time.Millisecond)
+	require.Eventually(t, func() bool {
+		return strings.Contains(c.server.HTTPListenAddr(), strconv.Itoa(port2))
+
+	}, time.Second, time.Millisecond)
 
 	// clear received entries
 	r1.received = nil
@@ -256,7 +260,7 @@ func TestComponent_UpdateWithNewArguments(t *testing.T) {
 			r2.mux.RUnlock()
 		}()
 		return len(r1.received) == 1 && len(r2.received) == 1
-	}, time.Second*10, time.Second, "timed out waiting for receivers to get all messages")
+	}, 10*time.Second, time.Millisecond, "timed out waiting for receivers to get all messages")
 
 	r1.mux.RLock()
 	r2.mux.RLock()
