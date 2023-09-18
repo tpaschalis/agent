@@ -3,7 +3,6 @@ package kafkatarget
 import (
 	"context"
 	"fmt"
-	"reflect"
 	"testing"
 	"time"
 
@@ -57,24 +56,16 @@ func Test_TopicDiscovery(t *testing.T) {
 
 	ts.loop()
 
-	require.Eventually(t, func() bool {
-		group.mut.Lock()
-		if !group.consuming.Load() {
-			return false
-		}
-		group.mut.Unlock()
-		return reflect.DeepEqual([]string{"topic1"}, group.GetTopics())
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, group.consuming.Load())
+		assert.ElementsMatch(c, []string{"topic1"}, group.GetTopics())
 	}, time.Second, time.Millisecond, "expected topics: %v, got: %v", []string{"topic1"}, group.GetTopics())
 
 	client.UpdateTopics([]string{"topic1", "topic2"})
 
-	require.Eventually(t, func() bool {
-		group.mut.Lock()
-		if !group.consuming.Load() {
-			return false
-		}
-		group.mut.Unlock()
-		return reflect.DeepEqual([]string{"topic1", "topic2"}, group.GetTopics())
+	require.EventuallyWithT(t, func(c *assert.CollectT) {
+		assert.True(c, group.consuming.Load())
+		assert.ElementsMatch(c, []string{"topic1", "topic2"}, group.GetTopics())
 	}, time.Second, time.Millisecond, "expected topics: %v, got: %v", []string{"topic1", "topic2"}, group.GetTopics())
 
 	require.NoError(t, ts.Stop())

@@ -22,6 +22,7 @@ import (
 
 // Consumergroup handler
 type testConsumerGroupHandler struct {
+	mut     sync.RWMutex
 	handler sarama.ConsumerGroupHandler
 	ctx     context.Context
 	topics  []string
@@ -29,7 +30,6 @@ type testConsumerGroupHandler struct {
 	returnErr error
 
 	consuming atomic.Bool
-	mut       sync.RWMutex
 }
 
 func (c *testConsumerGroupHandler) Consume(ctx context.Context, topics []string, handler sarama.ConsumerGroupHandler) error {
