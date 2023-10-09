@@ -57,6 +57,10 @@ const (
 	// expected.
 	HealthTypeUnhealthy
 
+	// HealthTypeExited represents a component which has been assigned to run
+	// in some other node.
+	HealthTypeDescheduled
+
 	// HealthTypeExited represents a component which has stopped running.
 	HealthTypeExited
 )
@@ -68,6 +72,8 @@ func (ht HealthType) String() string {
 		return "healthy"
 	case HealthTypeUnhealthy:
 		return "unhealthy"
+	case HealthTypeDescheduled:
+		return "descheduled"
 	case HealthTypeExited:
 		return "exited"
 	default:
@@ -89,6 +95,8 @@ func (ht *HealthType) UnmarshalText(text []byte) error {
 		*ht = HealthTypeUnhealthy
 	case "unknown":
 		*ht = HealthTypeUnknown
+	case "descheduled":
+		*ht = HealthTypeDescheduled
 	case "exited":
 		*ht = HealthTypeExited
 	default:
@@ -101,7 +109,8 @@ func (ht *HealthType) UnmarshalText(text []byte) error {
 // considered to be the least healthy.
 //
 // Health types are first prioritized by [HealthTypeExited], followed by
-// [HealthTypeUnhealthy], [HealthTypeUnknown], and [HealthTypeHealthy].
+// [HealthTypeUnhealthy], [HealthTypeUnknown], [HealthTypeDescheduled] and
+// [HealthTypeHealthy].
 //
 // If multiple arguments have the same Health type, the Health with the most
 // recent timestamp is returned.
@@ -134,8 +143,9 @@ func LeastHealthy(h Health, hh ...Health) Health {
 // healthPriority maps a HealthType to its priority; higher numbers means "less
 // healthy."
 var healthPriority = [...]int{
-	HealthTypeHealthy:   0,
-	HealthTypeUnknown:   1,
-	HealthTypeUnhealthy: 2,
-	HealthTypeExited:    3,
+	HealthTypeHealthy:     0,
+	HealthTypeDescheduled: 1,
+	HealthTypeUnknown:     2,
+	HealthTypeUnhealthy:   3,
+	HealthTypeExited:      4,
 }
