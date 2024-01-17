@@ -31,6 +31,7 @@ import (
 	httpservice "github.com/grafana/agent/service/http"
 	"github.com/grafana/agent/service/labelstore"
 	otel_service "github.com/grafana/agent/service/otel"
+	remoteconfigservice "github.com/grafana/agent/service/remoteconfig"
 	uiservice "github.com/grafana/agent/service/ui"
 	"github.com/grafana/ckit/advertise"
 	"github.com/grafana/ckit/peer"
@@ -238,6 +239,8 @@ func (fr *flowRun) Run(configPath string) error {
 		EnablePProf:      fr.enablePprof,
 	})
 
+	remoteConfigService := remoteconfigservice.New()
+
 	uiService := uiservice.New(uiservice.Options{
 		UIPrefix: fr.uiPrefix,
 		Cluster:  clusterService.Data().(cluster.Cluster),
@@ -262,6 +265,7 @@ func (fr *flowRun) Run(configPath string) error {
 			clusterService,
 			otelService,
 			labelService,
+			remoteConfigService,
 		},
 	})
 

@@ -3,6 +3,7 @@ package remoteconfig
 import (
 	"context"
 
+	"github.com/grafana/agent/component"
 	"github.com/grafana/agent/component/common/config"
 	"github.com/grafana/agent/service"
 	commonconfig "github.com/prometheus/common/config"
@@ -10,6 +11,7 @@ import (
 
 // Service implements a service for remote configuration.
 type Service struct {
+	mod component.Module
 }
 
 // ServiceName defines the name used for the remote config service.
@@ -95,4 +97,13 @@ func (s *Service) Update(newConfig any) error {
 	_ = httpClient
 
 	return nil
+}
+
+// SetModule sets up the module used to create and run pipelines fetched from a
+// remote configuration endpoint.
+// TODO(@tpaschalis) This is likely not the best option, but used as a starting
+// point; we should find a better way of passing or creating a module from the
+// root Flow controller.
+func (s *Service) SetModule(mod component.Module) {
+	s.mod = mod
 }
