@@ -239,7 +239,13 @@ func (fr *flowRun) Run(configPath string) error {
 		EnablePProf:      fr.enablePprof,
 	})
 
-	remoteConfigService := remoteconfigservice.New()
+	remoteConfigService, err := remoteconfigservice.New(remoteconfigservice.Options{
+		Logger:      log.With(l, "service", "remote_configuration"),
+		StoragePath: fr.storagePath,
+	})
+	if err != nil {
+		return fmt.Errorf("failed to create the remote_configuration service: %w", err)
+	}
 
 	uiService := uiservice.New(uiservice.Options{
 		UIPrefix: fr.uiPrefix,
