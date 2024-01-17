@@ -3,6 +3,7 @@ package remoteconfig
 import (
 	"context"
 
+	"github.com/grafana/agent/api/gen/proto/go/agent/v1/agentv1connect"
 	"github.com/grafana/agent/component"
 	"github.com/grafana/agent/component/common/config"
 	"github.com/grafana/agent/service"
@@ -12,6 +13,8 @@ import (
 // Service implements a service for remote configuration.
 type Service struct {
 	mod component.Module
+
+	asClient agentv1connect.AgentServiceClient
 }
 
 // ServiceName defines the name used for the remote config service.
@@ -94,7 +97,11 @@ func (s *Service) Update(newConfig any) error {
 	if err != nil {
 		return err
 	}
-	_ = httpClient
+
+	s.asClient = agentv1connect.NewAgentServiceClient(
+		httpClient,
+		newArgs.URL,
+	)
 
 	return nil
 }
