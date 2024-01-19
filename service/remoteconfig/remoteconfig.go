@@ -8,12 +8,16 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"reflect"
 	"time"
 
+	"connectrpc.com/connect"
 	"github.com/go-kit/log"
+	agentv1 "github.com/grafana/agent/api/gen/proto/go/agent/v1"
 	"github.com/grafana/agent/api/gen/proto/go/agent/v1/agentv1connect"
 	"github.com/grafana/agent/component"
 	"github.com/grafana/agent/component/common/config"
+	"github.com/grafana/agent/pkg/flow/logging/level"
 	"github.com/grafana/agent/service"
 	commonconfig "github.com/prometheus/common/config"
 )
@@ -27,6 +31,10 @@ func getHash(in string) string {
 	return fmt.Sprintf("%x", fnvHash.Sum(nil))
 }
 
+// TODO: Add metrics for every case.
+// TODO: Add jitter for requests.
+// TODO: Handle backoff from API in response to 429 or Retry-After headers.
+
 // Service implements a service for remote configuration.
 type Service struct {
 	mod component.Module
@@ -37,6 +45,14 @@ type Service struct {
 
 	dataPath string
 	ticker   *time.Ticker
+
+	getConfigRequest *connect.Request[agentv1.GetConfigRequest]
+
+	currentConfigHash string
+
+	args Arguments
+
+	lastSuccesfulContents []byte
 }
 
 // ServiceName defines the name used for the remote config service.
@@ -121,7 +137,85 @@ var _ service.Service = (*Service)(nil)
 // service. It will run until the provided context is canceled or there is a
 // fatal error.
 func (s *Service) Run(ctx context.Context, host service.Host) error {
-	return nil
+	// We're on the initial start-up of the service.
+	// Let's try to read from the API and load the response contents.
+	// If either the request itself or loading its contents fails, try to read
+	// from the on-disk cache on a best-effort basis.
+	var gcr *connect.Response[agentv1.GetConfigResponse]
+	var getErr, loadErr error
+
+	gcr, getErr = s.asClient.GetConfig(ctx, s.getConfigRequest)
+	if getErr != nil {
+		// Reading from the API failed, let's try the on-disk cache.
+		b, err := os.ReadFile(s.dataPath)
+		if err != nil {
+			level.Info(s.opts.Logger).Log("msg", "could not read from the on-disk cache")
+		}
+		if len(b) > 0 {
+			loadErr = s.mod.LoadConfig(b, nil)
+			if err != nil {
+				level.Info(s.opts.Logger).Log("msg", "could not load the on-disk cache contents")
+			} else {
+				s.lastSuccesfulContents = b
+				level.Info(s.opts.Logger).Log("msg", "loaded with on-disk cache contents successfully")
+			}
+		}
+	} else {
+		// Reading from the API succeeded, set the contents.
+		loadErr = s.mod.LoadConfig([]byte(gcr.Msg.GetContent()), nil)
+		if loadErr != nil {
+			level.Info(s.opts.Logger).Log("msg", "could not load the API response contents")
+		} else {
+			s.lastSuccesfulContents = []byte(gcr.Msg.GetContent())
+		}
+	}
+
+	go func() {
+		if err := s.mod.Run(ctx); err != nil {
+			level.Info(s.opts.Logger).Log("msg", "remote_configuration module exited with", "err", err)
+		}
+	}()
+
+	for {
+		select {
+		case <-s.ticker.C:
+			gcr, err := s.asClient.GetConfig(ctx, s.getConfigRequest)
+			if err != nil {
+				level.Error(s.opts.Logger).Log("msg", "failed to fetch remote_configuration", "err", err)
+				continue
+			}
+
+			newConfig := []byte(gcr.Msg.Content)
+
+			newConfigHash := getHash(gcr.Msg.Content)
+			if s.currentConfigHash == newConfigHash {
+				continue
+			}
+
+			// The polling loop got a new configuration to be loaded,
+			// attempt to load it.
+			err = s.mod.LoadConfig(newConfig, nil)
+			if err != nil {
+				level.Error(s.opts.Logger).Log("msg", "failed to load fetched remote_configuration", "err", err)
+
+				// Since it failed, try to reload the last successful
+				// configuration instead.
+				s.mod.LoadConfig(s.lastSuccesfulContents, nil)
+				continue
+			}
+
+			// If successful, flush to disk and keep a copy.
+			err = os.WriteFile(s.dataPath, newConfig, 0750)
+			if err != nil {
+				level.Error(s.opts.Logger).Log("msg", "failed to flush remote_configuration contents the on-disk cache", "err", err)
+			}
+			s.lastSuccesfulContents = newConfig
+		case <-ctx.Done():
+			s.ticker.Stop()
+			return nil
+		default:
+		}
+	}
 }
 
 // Update implements [service.Service] and applies settings.
@@ -129,33 +223,44 @@ func (s *Service) Update(newConfig any) error {
 	newArgs := newConfig.(Arguments)
 
 	if newArgs.URL == "" {
-		// TODO(@tpaschalis) We either never set the block on the first place,
+		// TODO: We either never set the block on the first place,
 		// or recently removed it. Make sure we stop everything before
 		// returning.
 		return nil
 	}
 
-	s.ticker.Reset(newArgs.PollFrequency)
+	// TODO: Should we also include the username, or some other property?
 	s.dataPath = filepath.Join(s.opts.StoragePath, ServiceName, getHash(newArgs.URL))
+	s.ticker.Reset(newArgs.PollFrequency)
 
-	httpClient, err := commonconfig.NewClientFromConfig(*newArgs.HTTPClientConfig.Convert(), "remoteconfig")
-	if err != nil {
-		return err
+	if !reflect.DeepEqual(s.args.HTTPClientConfig, newArgs.HTTPClientConfig) {
+		httpClient, err := commonconfig.NewClientFromConfig(*newArgs.HTTPClientConfig.Convert(), "remoteconfig")
+		if err != nil {
+			return err
+		}
+		s.asClient = agentv1connect.NewAgentServiceClient(
+			httpClient,
+			newArgs.URL,
+		)
 	}
 
-	s.asClient = agentv1connect.NewAgentServiceClient(
-		httpClient,
-		newArgs.URL,
-	)
+	// TODO: Is this ok to reuse since it contains some kind of 'state' field?
+	// TODO: Wire in Agent ID, Metadata from the Arguments.
+	s.getConfigRequest = connect.NewRequest(&agentv1.GetConfigRequest{
+		Id:       "",
+		Metadata: make(map[string]string),
+	})
+
+	s.args = newArgs
 
 	return nil
 }
 
 // SetModule sets up the module used to create and run pipelines fetched from a
 // remote configuration endpoint.
-// TODO(@tpaschalis) This is likely not the best option, but used as a starting
+// TODO: This is likely not the best option, but used as a starting
 // point; we should find a better way of passing or creating a module from the
-// root Flow controller.
+// root Flow controller, likely after Modules v2.0 is finished.
 func (s *Service) SetModule(mod component.Module) {
 	s.mod = mod
 }
