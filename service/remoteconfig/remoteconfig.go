@@ -143,8 +143,18 @@ func (s *Service) Run(ctx context.Context, host service.Host) error {
 	var getErr, loadErr error
 
 	gcr, getErr = s.asClient.GetConfig(ctx, s.getConfigRequest)
-	if getErr != nil {
-		// Reading from the API failed, let's try the on-disk cache.
+	if getErr == nil {
+		// Reading from the API succeeded, let's try to load the contents.
+		loadErr = s.mod.LoadConfig([]byte(gcr.Msg.GetContent()), nil)
+		if loadErr != nil {
+			level.Info(s.opts.Logger).Log("msg", "could not load the API response contents")
+		} else {
+			s.lastSuccesfulContents = []byte(gcr.Msg.GetContent())
+		}
+	}
+	if getErr != nil || loadErr != nil {
+		// Either the API call or loading its contents failed, let's try the
+		// on-disk cache.
 		b, err := os.ReadFile(s.dataPath)
 		if err != nil {
 			level.Info(s.opts.Logger).Log("msg", "could not read from the on-disk cache")
@@ -157,14 +167,6 @@ func (s *Service) Run(ctx context.Context, host service.Host) error {
 				s.lastSuccesfulContents = b
 				level.Info(s.opts.Logger).Log("msg", "loaded with on-disk cache contents successfully")
 			}
-		}
-	} else {
-		// Reading from the API succeeded, set the contents.
-		loadErr = s.mod.LoadConfig([]byte(gcr.Msg.GetContent()), nil)
-		if loadErr != nil {
-			level.Info(s.opts.Logger).Log("msg", "could not load the API response contents")
-		} else {
-			s.lastSuccesfulContents = []byte(gcr.Msg.GetContent())
 		}
 	}
 
