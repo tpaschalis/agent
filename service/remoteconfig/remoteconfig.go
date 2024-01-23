@@ -17,6 +17,7 @@ import (
 	"github.com/grafana/agent/api/gen/proto/go/agent/v1/agentv1connect"
 	"github.com/grafana/agent/component"
 	"github.com/grafana/agent/component/common/config"
+	"github.com/grafana/agent/internal/agentseed"
 	"github.com/grafana/agent/pkg/flow/logging/level"
 	"github.com/grafana/agent/service"
 	commonconfig "github.com/prometheus/common/config"
@@ -37,21 +38,14 @@ func getHash(in string) string {
 
 // Service implements a service for remote configuration.
 type Service struct {
-	mod component.Module
-
-	asClient agentv1connect.AgentServiceClient
-
-	opts Options
-
-	dataPath string
-	ticker   *time.Ticker
-
-	getConfigRequest *connect.Request[agentv1.GetConfigRequest]
-
-	currentConfigHash string
-
-	args Arguments
-
+	opts                  Options
+	args                  Arguments
+	mod                   component.Module
+	asClient              agentv1connect.AgentServiceClient
+	ticker                *time.Ticker
+	dataPath              string
+	getConfigRequest      *connect.Request[agentv1.GetConfigRequest]
+	currentConfigHash     string
 	lastSuccesfulContents []byte
 }
 
@@ -68,6 +62,8 @@ type Options struct {
 // Arguments holds runtime settings for the remote config service.
 type Arguments struct {
 	URL              string                   `river:"url,attr,optional"`
+	ID               string                   `river:"id,attr,optional"`
+	Metadata         map[string]string        `river:"metadata,attr,optional"`
 	PollFrequency    time.Duration            `river:"poll_frequency,attr,optional"`
 	HTTPClientConfig *config.HTTPClientConfig `river:",squash"`
 }
@@ -75,6 +71,8 @@ type Arguments struct {
 // GetDefaultArguments populates the default values for the Arguments struct.
 func GetDefaultArguments() Arguments {
 	return Arguments{
+		ID:               agentseed.Get().UID,
+		Metadata:         make(map[string]string),
 		PollFrequency:    1 * time.Minute,
 		HTTPClientConfig: config.CloneDefaultHTTPClientConfig(),
 	}
@@ -247,8 +245,8 @@ func (s *Service) Update(newConfig any) error {
 	// TODO: Is this ok to reuse since it contains some kind of 'state' field?
 	// TODO: Wire in Agent ID, Metadata from the Arguments.
 	s.getConfigRequest = connect.NewRequest(&agentv1.GetConfigRequest{
-		Id:       "",
-		Metadata: make(map[string]string),
+		Id:       newArgs.ID,
+		Metadata: newArgs.Metadata,
 	})
 
 	s.args = newArgs
