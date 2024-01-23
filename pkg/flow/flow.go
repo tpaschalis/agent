@@ -56,7 +56,6 @@ import (
 	"github.com/grafana/agent/pkg/flow/logging/level"
 	"github.com/grafana/agent/pkg/flow/tracing"
 	"github.com/grafana/agent/service"
-	"github.com/grafana/agent/service/remoteconfig"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 )
@@ -181,32 +180,6 @@ func newController(o controllerOptions) *Flow {
 
 	serviceMap := controller.NewServiceMap(o.Services)
 
-	moduleControllerFactory := func(id string) controller.ModuleController {
-		return newModuleController(&moduleControllerOptions{
-			ComponentRegistry: o.ComponentRegistry,
-			ModuleRegistry:    o.ModuleRegistry,
-			Logger:            log,
-			Tracer:            tracer,
-			Reg:               o.Reg,
-			DataPath:          o.DataPath,
-			ID:                id,
-			ServiceMap:        serviceMap,
-			WorkerPool:        workerPool,
-		})
-	}
-
-	rcn := remoteconfig.ServiceName
-	rc, found := serviceMap.Get(rcn)
-	if !found {
-		panic("missing remoteconfig service")
-	}
-	rcModuleController := moduleControllerFactory(rcn)
-	mod, err := rcModuleController.NewModule(rcn, nil)
-	if err != nil {
-		panic("failed to initialize a module for the remote_configuration service")
-	}
-	rc.(*remoteconfig.Service).SetModule(mod)
-
 	f.loader = controller.NewLoader(controller.LoaderOptions{
 		ComponentGlobals: controller.ComponentGlobals{
 			Logger:        log,
@@ -216,10 +189,22 @@ func newController(o controllerOptions) *Flow {
 				// Changed components should be queued for reevaluation.
 				f.updateQueue.Enqueue(cn)
 			},
-			OnExportsChange:     o.OnExportsChange,
-			Registerer:          o.Reg,
-			ControllerID:        o.ControllerID,
-			NewModuleController: moduleControllerFactory,
+			OnExportsChange: o.OnExportsChange,
+			Registerer:      o.Reg,
+			ControllerID:    o.ControllerID,
+			NewModuleController: func(id string) controller.ModuleController {
+				return newModuleController(&moduleControllerOptions{
+					ComponentRegistry: o.ComponentRegistry,
+					ModuleRegistry:    o.ModuleRegistry,
+					Logger:            log,
+					Tracer:            tracer,
+					Reg:               o.Reg,
+					DataPath:          o.DataPath,
+					ID:                id,
+					ServiceMap:        serviceMap,
+					WorkerPool:        workerPool,
+				})
+			},
 			GetServiceData: func(name string) (interface{}, error) {
 				svc, found := serviceMap.Get(name)
 				if !found {
