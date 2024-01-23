@@ -543,6 +543,13 @@ func (l *Loader) OriginalGraph() *dag.Graph {
 	return l.originalGraph.Clone()
 }
 
+// ModuleController returns a new module controller created with the given ID. This is used to wire
+func (l *Loader) ModuleController(id string) ModuleController {
+	l.mut.RLock()
+	defer l.mut.RUnlock()
+	return l.globals.NewModuleController(id)
+}
+
 // EvaluateDependants sends components which depend directly on components in updatedNodes for evaluation to the
 // workerPool. It should be called whenever components update their exports.
 // It is beneficial to call EvaluateDependants with a batch of components, as it will enqueue the entire batch before

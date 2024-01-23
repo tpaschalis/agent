@@ -56,6 +56,7 @@ import (
 	"github.com/grafana/agent/pkg/flow/logging/level"
 	"github.com/grafana/agent/pkg/flow/tracing"
 	"github.com/grafana/agent/service"
+	"github.com/grafana/agent/service/remoteconfig"
 	"github.com/prometheus/client_golang/prometheus"
 	"go.uber.org/atomic"
 )
@@ -121,12 +122,19 @@ type Flow struct {
 
 // New creates a new, unstarted Flow controller. Call Run to run the controller.
 func New(o Options) *Flow {
-	return newController(controllerOptions{
+	ctrl := newController(controllerOptions{
 		Options:        o,
 		ModuleRegistry: newModuleRegistry(),
 		IsModule:       false, // We are creating a new root controller.
 		WorkerPool:     worker.NewDefaultWorkerPool(),
 	})
+
+	m, _ := ctrl.loader.ModuleController(remoteconfig.ServiceName).NewModule(remoteconfig.ServiceName, nil)
+
+	svc, _ := o.Services[len(o.Services)-1].(*remoteconfig.Service)
+	svc.SetModule(m)
+
+	return ctrl
 }
 
 // controllerOptions are internal options used to create both root Flow
