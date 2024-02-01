@@ -32,7 +32,9 @@ type staleMarker struct {
 	labelHash       uint64
 }
 
-type Arguments struct{}
+type Arguments struct {
+	ID string `river:"id,attr"`
+}
 
 var _ flow_service.Service = (*service)(nil)
 
