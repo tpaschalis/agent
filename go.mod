@@ -39,7 +39,7 @@ require (
 	github.com/go-sourcemap/sourcemap v2.1.3+incompatible
 	github.com/go-sql-driver/mysql v1.7.1
 	github.com/gogo/protobuf v1.3.2
-	github.com/golang/protobuf v1.5.3
+	github.com/golang/protobuf v1.5.4
 	github.com/golang/snappy v0.0.4
 	github.com/google/cadvisor v0.47.0
 	github.com/google/dnsmasq_exporter v0.2.1-0.20230620100026-44b14480804a
@@ -220,15 +220,15 @@ require (
 	golang.org/x/time v0.3.0
 	google.golang.org/api v0.149.0
 	google.golang.org/grpc v1.61.0
-	google.golang.org/protobuf v1.32.0
+	google.golang.org/protobuf v1.33.0
 	gopkg.in/yaml.v2 v2.4.0
 	gopkg.in/yaml.v3 v3.0.1
 	gotest.tools v2.2.0+incompatible
-	k8s.io/api v0.28.3
+	k8s.io/api v0.29.3
 	k8s.io/apiextensions-apiserver v0.28.0
-	k8s.io/client-go v0.28.3
+	k8s.io/client-go v0.29.3
 	k8s.io/component-base v0.28.1
-	k8s.io/klog/v2 v2.100.1
+	k8s.io/klog/v2 v2.110.1
 	k8s.io/utils v0.0.0-20230726121419-3b25d923346b
 	sigs.k8s.io/controller-runtime v0.16.2
 	sigs.k8s.io/yaml v1.3.0
@@ -581,7 +581,7 @@ require (
 	golang.org/x/mod v0.14.0 // indirect
 	golang.org/x/sync v0.5.0 // indirect
 	golang.org/x/term v0.16.0 // indirect
-	golang.org/x/tools v0.16.0
+	golang.org/x/tools v0.16.1
 	golang.org/x/xerrors v0.0.0-20220907171357-04be3eba64a2 // indirect
 	gomodules.xyz/jsonpatch/v2 v2.4.0 // indirect
 	gonum.org/v1/gonum v0.14.0 // indirect
@@ -598,7 +598,7 @@ require (
 	howett.net/plist v1.0.0 // indirect
 	k8s.io/kube-openapi v0.0.0-20231010175941-2dd684a91f00 // indirect
 	sigs.k8s.io/json v0.0.0-20221116044647-bc3834ca7abd // indirect
-	sigs.k8s.io/structured-merge-diff/v4 v4.3.0 // indirect
+	sigs.k8s.io/structured-merge-diff/v4 v4.4.1 // indirect
 )
 
 require github.com/ianlancetaylor/demangle v0.0.0-20230524184225-eabc099b10ab // indirect
@@ -616,7 +616,7 @@ require (
 	github.com/open-telemetry/opentelemetry-collector-contrib/receiver/vcenterreceiver v0.87.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp v0.42.0
 	golang.org/x/crypto/x509roots/fallback v0.0.0-20240208163226-62c9f1799c91
-	k8s.io/apimachinery v0.28.3
+	k8s.io/apimachinery v0.29.3
 )
 
 require (
